@@ -42,10 +42,6 @@ export default function RootLayout() {
         <ThemeProvider value={navigationTheme}>
           <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
             <Stack.Screen name="index" />
-            <Stack.Screen name="camera" options={{ animation: 'slide_from_right' }} />
-            <Stack.Screen name="phrasebook/index" options={{ animation: 'slide_from_right' }} />
-            <Stack.Screen name="phrasebook/[category]" options={{ animation: 'slide_from_right' }} />
-            <Stack.Screen name="conversation" options={{ animation: 'slide_from_right' }} />
           </Stack>
           <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
         </ThemeProvider>

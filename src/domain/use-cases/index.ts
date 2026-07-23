@@ -1,3 +1,5 @@
+export { TranslateTextUseCase } from './TranslateTextUseCase';
+export type { TranslateTextOutput } from './TranslateTextUseCase';
 export { TranslateSpeechUseCase } from './TranslateSpeechUseCase';
 export type { TranslateSpeechOutput } from './TranslateSpeechUseCase';
 export { TranslateCameraUseCase } from './TranslateCameraUseCase';

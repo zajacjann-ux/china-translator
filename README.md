@@ -1,81 +1,84 @@
 # Rabbitalk
 
-**Rabbitalk** is an AI travel communication assistant for worldwide travel. Talk, translate, and navigate in any supported language pair — built with React Native, Expo, and OpenAI.
+AI travel communication assistant — text translation MVP.
 
-## Version 1 languages
+## MVP features
 
-| Flag | Language | STT | Translation | TTS |
-|------|----------|-----|-------------|-----|
-| 🇸🇰 | Slovak | ✅ | ✅ | ✅ |
-| 🇬🇧 | English | ✅ | ✅ | ✅ |
-| 🇩🇪 | German | ✅ | ✅ | ✅ |
-| 🇨🇳 | Chinese (Simplified) | ✅ | ✅ | ✅ |
+- **Text translation** via OpenAI GPT-4o-mini
+- **Language selector** — Slovak, English, German, Chinese (Simplified)
+- Any source → target pair (e.g. SK → EN, DE → ZH)
+- **Text-to-speech** for translated text (OpenAI TTS-1)
+- **Recent translations** saved locally (last 20)
+- Clear error when API key is missing
 
-Any source ⇄ target combination works (e.g. Slovak ⇄ Chinese, English ⇄ German, German ⇄ Chinese).
+## Setup
 
-## Quick start
+### 1. Install dependencies
 
 ```bash
 npm install
-cp .env.example .env   # add EXPO_PUBLIC_OPENAI_API_KEY
+```
+
+### 2. Add OpenAI API key
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
+
+```
+EXPO_PUBLIC_OPENAI_API_KEY=sk-your-real-key-here
+```
+
+Get a key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
+
+**Important:** Restart the dev server after changing `.env`:
+
+```bash
+npx expo start --clear
+```
+
+### 3. Run on Android
+
+```bash
 npx expo start --android
 ```
 
-## Adding a new language
+Or start the dev server and press `a` in the terminal with an emulator or device connected.
 
-Edit **one file**: `src/config/languages.config.ts`
+For full audio playback, use a **physical device** or development build. Expo Go works for text translation testing.
 
-```typescript
-{
-  code: 'fr',
-  label: 'French',
-  nativeLabel: 'Français',
-  flag: '🇫🇷',
-  whisperCode: 'fr',
-  speechLocale: 'fr-FR',
-  sttEnabled: true,
-  translationEnabled: true,
-  ttsEnabled: true,
-  ttsVoice: 'nova',
-}
-```
+## Test your first translation
 
-Then add phrase translations in `src/data/phrasebook/phrases.ts`. No other code changes required.
+1. Open the app on Android
+2. Confirm the language bar shows **From** and **To** (default: Slovak → Chinese)
+3. Tap either language to change it (e.g. English → German)
+4. Type text in the input field, e.g. `Hello, where is the train station?`
+5. Tap **Translate**
+6. You should see:
+   - Original text
+   - Translated text
+   - Translated speech playing automatically
+7. Tap **Replay speech** or **Copy text**
+8. Check **Recent conversations** at the bottom
 
-## Features
+## Add a new language
 
-| Feature | Description |
-|---------|-------------|
-| **Voice Translate** | Press-and-hold → Whisper → GPT-4o-mini → TTS-1 |
-| **Language Selector** | Dynamic pair from config — any source/target |
-| **Camera Translate** | Photo OCR → translate → read aloud |
-| **Phrasebook** | Offline travel phrases with on-device pronunciation |
-| **Recent Conversations** | Last 20 stored locally |
-| **Conversation Mode** | Architecture ready (coming soon) |
+Edit one file: `src/config/languages.config.ts`
 
-## Architecture
+## Project structure
 
 ```
 src/
-├── config/languages.config.ts   ← single language configuration
-├── domain/                      ← use cases, interfaces, entities
-├── data/                        ← OpenAI, expo-audio, phrasebook data
-├── presentation/                ← UI, LanguagePairContext
-└── app/                         ← Expo Router screens
+├── config/languages.config.ts   # Language definitions
+├── domain/use-cases/TranslateTextUseCase.ts
+├── app/index.tsx                # MVP home screen
+└── presentation/hooks/useTextTranslation.ts
 ```
-
-## Models
-
-| Step | Model |
-|------|--------|
-| STT | `whisper-1` |
-| Translation / OCR | `gpt-4o-mini` |
-| TTS | `tts-1` (per-language voice in config) |
-
-Phrasebook pronunciation uses **expo-speech** (on-device, offline).
 
 ## Package
 
-- **App name:** Rabbitalk
-- **iOS bundle:** `com.rabbitalk.app`
-- **Android package:** `com.rabbitalk.app`
+- App: **Rabbitalk**
+- Android: `com.rabbitalk.app`
+- iOS: `com.rabbitalk.app`

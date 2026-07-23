@@ -60,7 +60,7 @@ export function fromStoredResult(stored: StoredTranslationResult): TranslationRe
     direction: stored.direction,
     sourceLanguage: stored.sourceLanguage ?? fallbackSource ?? DEFAULT_USER_LANGUAGE,
     targetLanguage: stored.targetLanguage ?? fallbackTarget ?? DEFAULT_PARTNER_LANGUAGE,
-    mode: stored.mode ?? 'speech',
+    mode: stored.mode ?? 'text',
     originalText: stored.originalText,
     translatedText: stored.translatedText,
     createdAt: new Date(stored.createdAt),

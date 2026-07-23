@@ -6,6 +6,7 @@ import type { TranslationResult } from '@/domain/entities/TranslationResult';
 import { getLanguage } from '@/domain/entities/Language';
 
 const MODE_LABEL: Record<string, string> = {
+  text: '✏️',
   speech: '🎤',
   camera: '📷',
   phrasebook: '📖',

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Link } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ThemedText } from '@/presentation/components/ui/ThemedText';
 import { LanguagePickerModal } from '@/presentation/components/language/LanguagePickerModal';
@@ -11,19 +10,26 @@ import { Colors, BorderRadius, Spacing } from '@/presentation/theme';
 export function LanguageSelector() {
   const scheme = useColorScheme();
   const palette = Colors[scheme];
-  const { userLang, partnerLang, userLanguage, partnerLanguage, setUserLanguage, setPartnerLanguage, swapLanguages } =
-    useLanguagePair();
+  const {
+    userLang,
+    partnerLang,
+    userLanguage,
+    partnerLanguage,
+    setUserLanguage,
+    setPartnerLanguage,
+    swapLanguages,
+  } = useLanguagePair();
 
-  const [pickerTarget, setPickerTarget] = useState<'user' | 'partner' | null>(null);
+  const [pickerTarget, setPickerTarget] = useState<'source' | 'target' | null>(null);
 
-  const openUserPicker = () => {
+  const openSourcePicker = () => {
     Haptics.selectionAsync();
-    setPickerTarget('user');
+    setPickerTarget('source');
   };
 
-  const openPartnerPicker = () => {
+  const openTargetPicker = () => {
     Haptics.selectionAsync();
-    setPickerTarget('partner');
+    setPickerTarget('target');
   };
 
   const handleSwap = () => {
@@ -34,7 +40,10 @@ export function LanguageSelector() {
   return (
     <View style={styles.container}>
       <View style={[styles.bar, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-        <Pressable onPress={openUserPicker} style={styles.langSide} accessibilityRole="button">
+        <Pressable onPress={openSourcePicker} style={styles.langSide} accessibilityRole="button">
+          <ThemedText variant="caption" color="secondary">
+            From
+          </ThemedText>
           <ThemedText style={styles.flag}>{userLang.flag}</ThemedText>
           <ThemedText variant="subtitle" numberOfLines={1}>
             {userLang.label}
@@ -47,7 +56,10 @@ export function LanguageSelector() {
           </ThemedText>
         </Pressable>
 
-        <Pressable onPress={openPartnerPicker} style={styles.langSide} accessibilityRole="button">
+        <Pressable onPress={openTargetPicker} style={styles.langSide} accessibilityRole="button">
+          <ThemedText variant="caption" color="secondary">
+            To
+          </ThemedText>
           <ThemedText style={styles.flag}>{partnerLang.flag}</ThemedText>
           <ThemedText variant="subtitle" numberOfLines={1}>
             {partnerLang.label}
@@ -55,24 +67,16 @@ export function LanguageSelector() {
         </Pressable>
       </View>
 
-      <Link href="/phrasebook" asChild>
-        <Pressable style={styles.phrasebookLink} accessibilityRole="link">
-          <ThemedText variant="caption" color="secondary">
-            📖 Phrasebook
-          </ThemedText>
-        </Pressable>
-      </Link>
-
       <LanguagePickerModal
-        visible={pickerTarget === 'user'}
-        title="I speak"
+        visible={pickerTarget === 'source'}
+        title="Translate from"
         selectedCode={userLanguage}
         onSelect={setUserLanguage}
         onClose={() => setPickerTarget(null)}
       />
       <LanguagePickerModal
-        visible={pickerTarget === 'partner'}
-        title="They speak"
+        visible={pickerTarget === 'target'}
+        title="Translate to"
         selectedCode={partnerLanguage}
         onSelect={setPartnerLanguage}
         onClose={() => setPickerTarget(null)}
@@ -92,7 +96,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.sm,
-    minHeight: 64,
+    minHeight: 72,
   },
   langSide: {
     flex: 1,
@@ -111,13 +115,6 @@ const styles = StyleSheet.create({
     minWidth: 48,
     minHeight: 48,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  phrasebookLink: {
-    alignSelf: 'flex-end',
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
-    minHeight: 36,
     justifyContent: 'center',
   },
 });

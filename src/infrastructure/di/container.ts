@@ -6,6 +6,7 @@ import { OpenAIVisionOcrRepository } from '@/data/repositories/OpenAIVisionOcrRe
 import { LocalPhrasebookRepository } from '@/data/repositories/LocalPhrasebookRepository';
 import { ExpoPhraseSpeechService } from '@/data/services/ExpoPhraseSpeechService';
 import { AsyncStorageConversationRepository } from '@/data/storage/ConversationHistoryRepository';
+import { TranslateTextUseCase } from '@/domain/use-cases/TranslateTextUseCase';
 import { TranslateSpeechUseCase } from '@/domain/use-cases/TranslateSpeechUseCase';
 import { TranslateCameraUseCase } from '@/domain/use-cases/TranslateCameraUseCase';
 import { PhrasebookUseCase } from '@/domain/use-cases/PhrasebookUseCase';
@@ -20,6 +21,12 @@ class Container {
   readonly phrasebookRepository = new LocalPhrasebookRepository();
   readonly phraseSpeechService = new ExpoPhraseSpeechService();
   readonly conversationHistoryRepository = new AsyncStorageConversationRepository();
+
+  readonly translateTextUseCase = new TranslateTextUseCase(
+    this.translationRepository,
+    this.textToSpeechRepository,
+    this.audioRepository,
+  );
 
   readonly translateSpeechUseCase = new TranslateSpeechUseCase(
     this.audioRepository,

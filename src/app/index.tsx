@@ -1,39 +1,48 @@
 import { useCallback, useEffect } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { SafeScreen } from '@/presentation/components/layout/SafeScreen';
 import { LanguageSelector } from '@/presentation/components/language/LanguageSelector';
-import { TranslationButton } from '@/presentation/components/ui/TranslationButton';
-import { CameraModeButton } from '@/presentation/components/ui/CameraModeButton';
+import { TextTranslationInput } from '@/presentation/components/ui/TextTranslationInput';
+import { PrimaryButton } from '@/presentation/components/ui/PrimaryButton';
 import { ResultDisplay } from '@/presentation/components/ui/ResultDisplay';
 import { ErrorBanner } from '@/presentation/components/ui/ErrorBanner';
+import { ApiKeyBanner } from '@/presentation/components/ui/ApiKeyBanner';
 import { RecentConversations } from '@/presentation/components/home/RecentConversations';
 import { ThemedText } from '@/presentation/components/ui/ThemedText';
-import { useTranslationFlow } from '@/presentation/hooks/useTranslationFlow';
+import { useTextTranslation } from '@/presentation/hooks/useTextTranslation';
 import { useRecentConversations } from '@/presentation/hooks/useRecentConversations';
 import { useLanguagePair } from '@/presentation/context/LanguagePairContext';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
 import { Colors, Spacing } from '@/presentation/theme';
-import { isApiKeyConfigured } from '@/infrastructure/config/env';
+import { APP_NAME } from '@/shared/constants';
 
 export default function HomeScreen() {
   const scheme = useColorScheme();
   const palette = Colors[scheme];
-  const { speechRoutes } = useLanguagePair();
+  const { userLanguage, partnerLanguage, isReady } = useLanguagePair();
   const { conversations, refresh } = useRecentConversations(5);
   const {
-    status,
-    activePair,
+    inputText,
+    setInputText,
     lastResult,
-    error,
+    isTranslating,
     isReplaying,
     copyFeedback,
-    onPressIn,
-    onPressOut,
+    error,
+    translate,
     replaySpeech,
     copyTranslation,
     clearError,
-  } = useTranslationFlow();
+    apiKeyMissing,
+  } = useTextTranslation(userLanguage, partnerLanguage);
 
   useFocusEffect(
     useCallback(() => {
@@ -45,95 +54,90 @@ export default function HomeScreen() {
     if (lastResult) void refresh();
   }, [lastResult, refresh]);
 
-  const isProcessing = status === 'processing';
-  const isBusy = isProcessing || isReplaying;
-  const apiKeyMissing = !isApiKeyConfigured();
-  const showResult = Boolean(lastResult);
+  if (!isReady) {
+    return (
+      <SafeScreen>
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={palette.primary} />
+        </View>
+      </SafeScreen>
+    );
+  }
+
+  const isBusy = isTranslating || isReplaying;
 
   return (
     <SafeScreen padded={false}>
-      <View style={styles.container}>
-        <LanguageSelector />
-
-        <View style={[styles.main, showResult && styles.mainCompact]}>
-          <View style={styles.speechButtons}>
-            {speechRoutes.map((route) => (
-              <TranslationButton
-                key={route.id}
-                route={route}
-                isRecording={activePair?.direction === route.direction && status === 'recording'}
-                disabled={isBusy}
-                onPressIn={() => onPressIn(route.direction)}
-                onPressOut={onPressOut}
-              />
-            ))}
-          </View>
-          <CameraModeButton disabled={isBusy} />
-        </View>
-
-        {isProcessing && (
-          <View style={styles.processing}>
-            <ActivityIndicator size="large" color={palette.primary} />
-            <ThemedText variant="subtitle" color="secondary">
-              Translating…
-            </ThemedText>
-          </View>
-        )}
-
-        {apiKeyMissing && !showResult && (
-          <ThemedText variant="caption" color="secondary" style={styles.setupText}>
-            Add your OpenAI API key in .env
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+      >
+        <View style={styles.container}>
+          <ThemedText variant="caption" color="secondary" style={styles.appName}>
+            {APP_NAME}
           </ThemedText>
-        )}
 
-        {error && <ErrorBanner message={error} onDismiss={clearError} />}
+          <LanguageSelector />
 
-        {showResult && lastResult && (
-          <ResultDisplay
-            result={lastResult}
-            onReplay={replaySpeech}
-            onCopy={copyTranslation}
-            isReplaying={isReplaying}
-            copyFeedback={copyFeedback}
+          {apiKeyMissing && <ApiKeyBanner />}
+
+          <TextTranslationInput
+            value={inputText}
+            onChangeText={setInputText}
+            sourceLanguage={userLanguage}
+            editable={!isBusy}
           />
-        )}
 
-        <ScrollView style={styles.recent} showsVerticalScrollIndicator={false} onScrollEndDrag={refresh}>
-          <RecentConversations conversations={conversations} onRefresh={refresh} />
-        </ScrollView>
-      </View>
+          <PrimaryButton
+            label="Translate"
+            onPress={translate}
+            loading={isTranslating}
+            disabled={isBusy || apiKeyMissing || !inputText.trim()}
+          />
+
+          {error && <ErrorBanner message={error} onDismiss={clearError} />}
+
+          {lastResult && (
+            <ResultDisplay
+              result={lastResult}
+              onReplay={replaySpeech}
+              onCopy={copyTranslation}
+              isReplaying={isReplaying}
+              copyFeedback={copyFeedback}
+            />
+          )}
+
+          <ScrollView style={styles.recent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <RecentConversations conversations={conversations} />
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </SafeScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.md,
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
-  main: {
-    flex: 1,
-    gap: Spacing.sm,
-  },
-  mainCompact: {
-    flex: 0.55,
-  },
-  speechButtons: {
-    flex: 1,
-    gap: Spacing.sm,
-  },
-  processing: {
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  setupText: {
+  appName: {
     textAlign: 'center',
+  },
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   recent: {
     flexShrink: 0,
-    maxHeight: 220,
+    maxHeight: 180,
   },
 });
