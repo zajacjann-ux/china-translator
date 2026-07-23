@@ -10,6 +10,7 @@ import { AppError } from '@/shared/errors/AppError';
 import { logger } from '@/infrastructure/logging/logger';
 
 type AudioRecorderInstance = InstanceType<typeof AudioModule.AudioRecorder>;
+type ReleasableNativeObject = { release?: () => void };
 
 export class ExpoAudioRepository implements IAudioRepository {
   private recorder: AudioRecorderInstance | null = null;
@@ -82,8 +83,9 @@ export class ExpoAudioRepository implements IAudioRepository {
     });
 
     try {
-      this.player = createAudioPlayer({ uri });
-      this.player.play();
+      const player = createAudioPlayer(uri);
+      this.player = player;
+      player.play();
     } catch (error) {
       logger.error('Playback failed', error);
       throw AppError.fromUnknown(error, 'Failed to play audio.');
@@ -95,7 +97,7 @@ export class ExpoAudioRepository implements IAudioRepository {
 
     try {
       this.player.pause();
-      this.player.release();
+      this.player.remove();
     } catch (error) {
       logger.warn('Failed to release audio player', error);
     } finally {
@@ -112,7 +114,7 @@ export class ExpoAudioRepository implements IAudioRepository {
     if (!this.recorder) return;
 
     try {
-      this.recorder.release();
+      (this.recorder as ReleasableNativeObject).release?.();
     } catch (error) {
       logger.warn('Failed to release recorder', error);
     } finally {

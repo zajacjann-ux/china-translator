@@ -28,7 +28,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: 'com.rabbitalk.app',
-    screenOrientation: 'portrait',
     adaptiveIcon: {
       foregroundImage: './assets/images/android-icon-foreground.png',
       backgroundColor: '#0F172A',
@@ -41,7 +40,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     favicon: './assets/images/favicon.png',
   },
   plugins: [
+    'expo-dev-client',
     'expo-router',
+    'expo-asset',
     [
       'expo-audio',
       {

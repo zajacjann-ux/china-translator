@@ -1,0 +1,7 @@
+.git/
+.expo/
+dist/
+web-build/
+node_modules/
+android/
+ios/

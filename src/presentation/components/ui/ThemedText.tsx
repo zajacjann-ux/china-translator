@@ -3,7 +3,7 @@ import { StyleSheet, Text, type TextProps, type TextStyle } from 'react-native';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
 import { Colors, Typography } from '@/presentation/theme';
 
-type ThemedTextVariant = 'title' | 'subtitle' | 'body' | 'caption' | 'label';
+type ThemedTextVariant = 'title' | 'subtitle' | 'body' | 'caption' | 'label' | 'button';
 
 interface ThemedTextProps extends TextProps {
   variant?: ThemedTextVariant;

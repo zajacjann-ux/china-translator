@@ -2,83 +2,66 @@
 
 AI travel communication assistant — text translation MVP.
 
-## MVP features
+## Android Development Build (SDK 56)
 
-- **Text translation** via OpenAI GPT-4o-mini
-- **Language selector** — Slovak, English, German, Chinese (Simplified)
-- Any source → target pair (e.g. SK → EN, DE → ZH)
-- **Text-to-speech** for translated text (OpenAI TTS-1)
-- **Recent translations** saved locally (last 20)
-- Clear error when API key is missing
+Rabbitalk uses **EAS Build** and **expo-dev-client** — not Expo Go.
 
-## Setup
+| Profile | Purpose | Output |
+|---------|---------|--------|
+| `development` | Dev client on physical device + Metro | APK |
+| `preview` | Internal release-like testing | Signed APK |
+| `production` | Store-ready / distributable builds | Signed APK |
 
-### 1. Install dependencies
+- **Package:** `com.rabbitalk.app`
+- **EAS project ID:** configured in `app.config.ts`
+
+## Local setup
 
 ```bash
 npm install
-```
-
-### 2. Add OpenAI API key
-
-```bash
 cp .env.example .env
+# Edit .env — set EXPO_PUBLIC_OPENAI_API_KEY=sk-...
 ```
 
-Edit `.env`:
+## EAS environment (cloud builds)
 
-```
-EXPO_PUBLIC_OPENAI_API_KEY=sk-your-real-key-here
-```
-
-Get a key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
-
-**Important:** Restart the dev server after changing `.env`:
+Set your OpenAI key for all build profiles:
 
 ```bash
-npx expo start --clear
+eas env:create EXPO_PUBLIC_OPENAI_API_KEY \
+  --value sk-your-key-here \
+  --environment development,preview,production \
+  --visibility plaintext
 ```
 
-### 3. Run on Android
+## Build & run on Android device
 
 ```bash
-npx expo start --android
+# 1. Build development APK (first time)
+npm run build:dev:android
+
+# 2. Install APK from EAS download link on your phone
+
+# 3. Start Metro for dev client
+npm start
+
+# 4. Open Rabbitalk on phone — it connects to your dev server
 ```
 
-Or start the dev server and press `a` in the terminal with an emulator or device connected.
+## Production APK
 
-For full audio playback, use a **physical device** or development build. Expo Go works for text translation testing.
+```bash
+npm run build:prod:android
+```
 
-## Test your first translation
-
-1. Open the app on Android
-2. Confirm the language bar shows **From** and **To** (default: Slovak → Chinese)
-3. Tap either language to change it (e.g. English → German)
-4. Type text in the input field, e.g. `Hello, where is the train station?`
-5. Tap **Translate**
-6. You should see:
-   - Original text
-   - Translated text
-   - Translated speech playing automatically
-7. Tap **Replay speech** or **Copy text**
-8. Check **Recent conversations** at the bottom
-
-## Add a new language
-
-Edit one file: `src/config/languages.config.ts`
+EAS manages Android signing credentials on first production build.
 
 ## Project structure
 
 ```
 src/
-├── config/languages.config.ts   # Language definitions
+├── config/languages.config.ts
 ├── domain/use-cases/TranslateTextUseCase.ts
-├── app/index.tsx                # MVP home screen
+├── app/index.tsx
 └── presentation/hooks/useTextTranslation.ts
 ```
-
-## Package
-
-- App: **Rabbitalk**
-- Android: `com.rabbitalk.app`
-- iOS: `com.rabbitalk.app`
