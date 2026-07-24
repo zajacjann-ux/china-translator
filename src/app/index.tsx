@@ -1,9 +1,8 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeScreen } from '@/presentation/components/layout/SafeScreen';
 import { LanguageSelector } from '@/presentation/components/language/LanguageSelector';
-import { VoiceMicButton } from '@/presentation/components/ui/VoiceMicButton';
+import { TranslationButton } from '@/presentation/components/ui/TranslationButton';
 import { ErrorBanner } from '@/presentation/components/ui/ErrorBanner';
-import { ThemedText } from '@/presentation/components/ui/ThemedText';
 import { useVoiceTranslation } from '@/presentation/hooks/useVoiceTranslation';
 import { useLanguagePair } from '@/presentation/context/LanguagePairContext';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
@@ -12,11 +11,16 @@ import { Colors, Spacing } from '@/presentation/theme';
 export default function HomeScreen() {
   const scheme = useColorScheme();
   const palette = Colors[scheme];
-  const { userLanguage, partnerLanguage, isReady } = useLanguagePair();
-  const { error, isRecording, isProcessing, onPressIn, onPressOut, clearError } = useVoiceTranslation(
-    userLanguage,
-    partnerLanguage,
-  );
+  const { speechRoutes, isReady } = useLanguagePair();
+  const {
+    error,
+    isRecording,
+    isProcessing,
+    activeRouteId,
+    onPressIn,
+    onPressOut,
+    clearError,
+  } = useVoiceTranslation();
 
   if (!isReady) {
     return (
@@ -28,28 +32,31 @@ export default function HomeScreen() {
     );
   }
 
-  const statusText = isProcessing
-    ? 'Translating…'
-    : isRecording
-      ? 'Listening…'
-      : 'Hold to Speak';
+  const [userRoute, partnerRoute] = speechRoutes;
 
   return (
     <SafeScreen padded={false}>
       <View style={styles.container}>
         <LanguageSelector />
 
-        <View style={styles.center}>
-          <VoiceMicButton
-            isRecording={isRecording}
-            isProcessing={isProcessing}
-            onPressIn={onPressIn}
+        <View style={styles.buttons}>
+          <TranslationButton
+            route={userRoute}
+            isRecording={isRecording && activeRouteId === userRoute.id}
+            isProcessing={isProcessing && activeRouteId === userRoute.id}
+            disabled={isProcessing || (isRecording && activeRouteId !== userRoute.id)}
+            onPressIn={() => onPressIn(userRoute)}
             onPressOut={onPressOut}
           />
 
-          <ThemedText variant="subtitle" color="secondary" style={styles.status}>
-            {statusText}
-          </ThemedText>
+          <TranslationButton
+            route={partnerRoute}
+            isRecording={isRecording && activeRouteId === partnerRoute.id}
+            isProcessing={isProcessing && activeRouteId === partnerRoute.id}
+            disabled={isProcessing || (isRecording && activeRouteId !== partnerRoute.id)}
+            onPressIn={() => onPressIn(partnerRoute)}
+            onPressOut={onPressOut}
+          />
         </View>
 
         {error && (
@@ -68,16 +75,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.lg,
+    gap: Spacing.md,
   },
-  center: {
+  buttons: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     gap: Spacing.lg,
-  },
-  status: {
-    textAlign: 'center',
-    letterSpacing: 0.3,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   footer: {
     alignItems: 'center',

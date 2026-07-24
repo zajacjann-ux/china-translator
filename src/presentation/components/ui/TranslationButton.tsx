@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -20,6 +20,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 interface TranslationButtonProps {
   route: TranslationRoute;
   isRecording?: boolean;
+  isProcessing?: boolean;
   disabled?: boolean;
   onPressIn?: () => void;
   onPressOut?: () => void;
@@ -28,15 +29,23 @@ interface TranslationButtonProps {
 export function TranslationButton({
   route,
   isRecording = false,
+  isProcessing = false,
   disabled = false,
   onPressIn,
   onPressOut,
 }: TranslationButtonProps) {
   const scheme = useColorScheme();
   const palette = Colors[scheme];
+  const isUser = route.speaker === 'user';
   const scale = useSharedValue(1);
   const ringScale = useSharedValue(1);
   const ringOpacity = useSharedValue(0);
+
+  const idleColor = isUser ? palette.mic : palette.primary;
+  const pressedColor = isUser ? palette.micPressed : palette.primaryPressed;
+  const recordingColor = isUser ? palette.micRecording : '#60A5FA';
+  const glowColor = isUser ? palette.micGlow : 'rgba(59, 130, 246, 0.35)';
+  const shadowColor = isUser ? '#22C55E' : '#3B82F6';
 
   useEffect(() => {
     if (isRecording) {
@@ -75,18 +84,23 @@ export function TranslationButton({
   }));
 
   const handlePressIn = () => {
-    if (disabled) return;
+    if (disabled || isProcessing) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onPressIn?.();
   };
 
   const handlePressOut = () => {
-    if (disabled) return;
+    if (disabled || isProcessing) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPressOut?.();
   };
 
-  const buttonColor = isRecording ? palette.micRecording : palette.mic;
+  const buttonColor = isRecording ? recordingColor : idleColor;
+  const hintText = isProcessing
+    ? 'Translating…'
+    : isRecording
+      ? 'Release to translate'
+      : 'Press and hold';
 
   return (
     <View style={styles.wrapper}>
@@ -94,26 +108,31 @@ export function TranslationButton({
         {isRecording && (
           <Animated.View
             pointerEvents="none"
-            style={[styles.pulseRing, { backgroundColor: palette.micGlow }, animatedRingStyle]}
+            style={[styles.pulseRing, { backgroundColor: glowColor }, animatedRingStyle]}
           />
         )}
         <AnimatedPressable
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
-          disabled={disabled}
+          disabled={disabled || isProcessing}
           style={({ pressed }: { pressed: boolean }) => [
             styles.circle,
             animatedButtonStyle,
             {
-              backgroundColor: pressed && !isRecording ? palette.micPressed : buttonColor,
+              backgroundColor: pressed && !isRecording ? pressedColor : buttonColor,
               opacity: disabled ? 0.55 : 1,
+              shadowColor,
             },
           ]}
           accessibilityRole="button"
           accessibilityLabel={`${route.buttonLabel}. Press and hold to speak.`}
           accessibilityHint="Hold while speaking, release to translate"
         >
-          <ThemedText style={styles.flag}>{route.buttonFlag}</ThemedText>
+          {isProcessing ? (
+            <ActivityIndicator size="large" color={palette.primaryText} />
+          ) : (
+            <ThemedText style={styles.flag}>{route.buttonFlag}</ThemedText>
+          )}
         </AnimatedPressable>
       </View>
 
@@ -121,11 +140,9 @@ export function TranslationButton({
         {route.buttonLabel}
       </ThemedText>
 
-      {isRecording && (
-        <ThemedText variant="caption" color="secondary" style={styles.hint}>
-          Release to translate
-        </ThemedText>
-      )}
+      <ThemedText variant="caption" color="secondary" style={styles.hint}>
+        {hintText}
+      </ThemedText>
     </View>
   );
 }
@@ -134,7 +151,7 @@ const styles = StyleSheet.create({
   wrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     paddingVertical: Spacing.sm,
   },
   circleArea: {
@@ -155,7 +172,6 @@ const styles = StyleSheet.create({
     borderRadius: MIC_BUTTON_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#22C55E',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -167,8 +183,9 @@ const styles = StyleSheet.create({
   },
   label: {
     ...Typography.button,
-    fontSize: 20,
+    fontSize: 18,
     textAlign: 'center',
+    letterSpacing: 0.4,
   },
   hint: {
     textAlign: 'center',
