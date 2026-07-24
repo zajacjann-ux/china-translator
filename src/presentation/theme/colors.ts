@@ -14,6 +14,10 @@ export const Colors = {
     success: '#16A34A',
     recording: '#EF4444',
     recordingGlow: 'rgba(239, 68, 68, 0.25)',
+    mic: '#22C55E',
+    micPressed: '#16A34A',
+    micRecording: '#4ADE80',
+    micGlow: 'rgba(34, 197, 94, 0.35)',
   },
   dark: {
     background: '#0F172A',
@@ -30,6 +34,10 @@ export const Colors = {
     success: '#4ADE80',
     recording: '#EF4444',
     recordingGlow: 'rgba(239, 68, 68, 0.35)',
+    mic: '#22C55E',
+    micPressed: '#16A34A',
+    micRecording: '#4ADE80',
+    micGlow: 'rgba(34, 197, 94, 0.4)',
   },
 } as const;
 

@@ -60,7 +60,7 @@ export class TranslateSpeechUseCase {
       pair.targetLanguage,
     );
 
-    void this.audioRepository.playAudio(ttsResult.audioUri);
+    await this.audioRepository.playAudio(ttsResult.audioUri);
 
     const result = createTranslationResult({
       direction: pair.direction,

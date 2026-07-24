@@ -4,7 +4,7 @@ import type { TranslationResult } from '@/domain/entities/TranslationResult';
 import { container } from '@/infrastructure/di/container';
 import { getErrorMessage } from '@/shared/errors/AppError';
 import { logger } from '@/infrastructure/logging/logger';
-import { isApiKeyConfigured, API_KEY_SETUP_MESSAGE } from '@/infrastructure/config/env';
+import { isApiKeyConfigured, API_KEY_MISSING_MESSAGE } from '@/infrastructure/config/env';
 
 export function useTextTranslation(sourceLanguage: string, targetLanguage: string) {
   const [inputText, setInputText] = useState('');
@@ -18,7 +18,7 @@ export function useTextTranslation(sourceLanguage: string, targetLanguage: strin
 
   const translate = useCallback(async () => {
     if (!isApiKeyConfigured()) {
-      setError(API_KEY_SETUP_MESSAGE);
+      setError(API_KEY_MISSING_MESSAGE);
       return;
     }
 

@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import { AppError } from '@/shared/errors/AppError';
 
 export interface EnvConfig {
@@ -8,43 +9,89 @@ export interface EnvConfig {
   ttsVoice: string;
 }
 
-export const API_KEY_ENV_VAR = 'EXPO_PUBLIC_OPENAI_API_KEY';
+export const API_KEY_MISSING_MESSAGE = 'API key is not configured.';
 
-export const API_KEY_SETUP_MESSAGE =
-  'OpenAI API key is missing. Copy .env.example to .env and set EXPO_PUBLIC_OPENAI_API_KEY=sk-... then restart the dev server.';
+type ExpoExtra = {
+  EXPO_PUBLIC_OPENAI_API_KEY?: string;
+  EXPO_PUBLIC_OPENAI_STT_MODEL?: string;
+  EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL?: string;
+  EXPO_PUBLIC_OPENAI_TTS_MODEL?: string;
+  EXPO_PUBLIC_OPENAI_TTS_VOICE?: string;
+};
 
-function requireEnv(key: string): string {
-  const value = process.env[key];
-  if (!value) {
-    throw new AppError('API_KEY_MISSING', API_KEY_SETUP_MESSAGE);
-  }
-  return value;
+/**
+ * Expo inlines only static `process.env.EXPO_PUBLIC_*` references at bundle time.
+ * EAS Build also embeds values via app.config `extra`, readable through expo-constants.
+ */
+function getExtra(): ExpoExtra {
+  return (Constants.expoConfig?.extra ?? {}) as ExpoExtra;
 }
 
-function optionalEnv(key: string, fallback: string): string {
-  return process.env[key] ?? fallback;
+function pickEnv(staticValue: string | undefined, extraValue: string | undefined): string | undefined {
+  const value = staticValue?.trim() || extraValue?.trim();
+  return value && value.length > 0 ? value : undefined;
+}
+
+/** OpenAI API key from Expo public env (Metro bundle or EAS embedded config). */
+export function getOpenAiApiKey(): string | undefined {
+  return pickEnv(process.env.EXPO_PUBLIC_OPENAI_API_KEY, getExtra().EXPO_PUBLIC_OPENAI_API_KEY);
+}
+
+function getSttModel(): string {
+  return (
+    pickEnv(process.env.EXPO_PUBLIC_OPENAI_STT_MODEL, getExtra().EXPO_PUBLIC_OPENAI_STT_MODEL) ??
+    'whisper-1'
+  );
+}
+
+function getTranslationModel(): string {
+  return (
+    pickEnv(
+      process.env.EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL,
+      getExtra().EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL,
+    ) ?? 'gpt-4o-mini'
+  );
+}
+
+function getTtsModel(): string {
+  return (
+    pickEnv(process.env.EXPO_PUBLIC_OPENAI_TTS_MODEL, getExtra().EXPO_PUBLIC_OPENAI_TTS_MODEL) ??
+    'tts-1'
+  );
+}
+
+function getTtsVoice(): string {
+  return (
+    pickEnv(process.env.EXPO_PUBLIC_OPENAI_TTS_VOICE, getExtra().EXPO_PUBLIC_OPENAI_TTS_VOICE) ??
+    'alloy'
+  );
 }
 
 /** Validated environment configuration. Call only when API access is needed. */
 export function getEnvConfig(): EnvConfig {
+  const openAiApiKey = getOpenAiApiKey();
+  if (!openAiApiKey) {
+    throw new AppError('API_KEY_MISSING', API_KEY_MISSING_MESSAGE);
+  }
+
   return {
-    openAiApiKey: requireEnv(API_KEY_ENV_VAR),
-    sttModel: optionalEnv('EXPO_PUBLIC_OPENAI_STT_MODEL', 'whisper-1'),
-    translationModel: optionalEnv('EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL', 'gpt-4o-mini'),
-    ttsModel: optionalEnv('EXPO_PUBLIC_OPENAI_TTS_MODEL', 'tts-1'),
-    ttsVoice: optionalEnv('EXPO_PUBLIC_OPENAI_TTS_VOICE', 'alloy'),
+    openAiApiKey,
+    sttModel: getSttModel(),
+    translationModel: getTranslationModel(),
+    ttsModel: getTtsModel(),
+    ttsVoice: getTtsVoice(),
   };
 }
 
 /** Safe check for whether API key is configured (for UI hints). */
 export function isApiKeyConfigured(): boolean {
-  const key = process.env[API_KEY_ENV_VAR];
-  return Boolean(key?.startsWith('sk-') && !key.includes('your-key-here'));
+  const key = getOpenAiApiKey();
+  return Boolean(key && key.length > 10);
 }
 
 /** Throws a user-friendly error when the API key is missing or invalid. */
 export function assertApiKeyConfigured(): void {
   if (!isApiKeyConfigured()) {
-    throw new AppError('API_KEY_MISSING', API_KEY_SETUP_MESSAGE);
+    throw new AppError('API_KEY_MISSING', API_KEY_MISSING_MESSAGE);
   }
 }

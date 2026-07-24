@@ -8,7 +8,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   scheme: 'rabbitalk',
-  userInterfaceStyle: 'automatic',
+  userInterfaceStyle: 'dark',
   newArchEnabled: true,
   splash: {
     image: './assets/images/splash-icon.png',
@@ -68,5 +68,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     eas: {
       projectId: '030ec575-4d75-4d73-9660-dd747c47cbd7',
     },
+    EXPO_PUBLIC_OPENAI_API_KEY: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
+    EXPO_PUBLIC_OPENAI_STT_MODEL: process.env.EXPO_PUBLIC_OPENAI_STT_MODEL,
+    EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL: process.env.EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL,
+    EXPO_PUBLIC_OPENAI_TTS_MODEL: process.env.EXPO_PUBLIC_OPENAI_TTS_MODEL,
+    EXPO_PUBLIC_OPENAI_TTS_VOICE: process.env.EXPO_PUBLIC_OPENAI_TTS_VOICE,
   },
 });

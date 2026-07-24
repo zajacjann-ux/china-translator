@@ -43,7 +43,7 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
             <Stack.Screen name="index" />
           </Stack>
-          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+          <StatusBar style="light" />
         </ThemeProvider>
       </LanguagePairProvider>
     </GestureHandlerRootView>
