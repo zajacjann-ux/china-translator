@@ -24,13 +24,14 @@ const initialState: VoiceTranslationState = {
 export function useVoiceTranslation() {
   const [state, setState] = useState<VoiceTranslationState>(initialState);
   const activeRouteRef = useRef<TranslationRoute | null>(null);
-  const isRecordingRef = useRef(false);
+  const recordingStartedRef = useRef(false);
+  const startRecordingPromiseRef = useRef<Promise<void> | null>(null);
 
   const onPressIn = useCallback(async (route: TranslationRoute) => {
-    if (isRecordingRef.current) return;
+    if (recordingStartedRef.current || startRecordingPromiseRef.current) return;
 
     activeRouteRef.current = route;
-    isRecordingRef.current = true;
+    recordingStartedRef.current = false;
 
     setState((prev) => ({
       ...prev,
@@ -40,26 +41,55 @@ export function useVoiceTranslation() {
       lastResult: null,
     }));
 
-    try {
+    const startRecording = async () => {
       await container.translateSpeechUseCase.startRecording();
+      recordingStartedRef.current = true;
+    };
+
+    startRecordingPromiseRef.current = startRecording();
+
+    try {
+      await startRecordingPromiseRef.current;
     } catch (error) {
       logger.error('Failed to start recording', error);
       activeRouteRef.current = null;
-      isRecordingRef.current = false;
+      recordingStartedRef.current = false;
       setState((prev) => ({
         ...prev,
         status: 'error',
         activeRouteId: null,
         error: getErrorMessage(error),
       }));
+    } finally {
+      startRecordingPromiseRef.current = null;
     }
   }, []);
 
   const onPressOut = useCallback(async () => {
     const route = activeRouteRef.current;
-    if (!route || !isRecordingRef.current) return;
+    if (!route) return;
 
-    isRecordingRef.current = false;
+    if (startRecordingPromiseRef.current) {
+      try {
+        await startRecordingPromiseRef.current;
+      } catch {
+        activeRouteRef.current = null;
+        recordingStartedRef.current = false;
+        return;
+      }
+    }
+
+    if (!recordingStartedRef.current) {
+      activeRouteRef.current = null;
+      setState((prev) =>
+        prev.status === 'recording'
+          ? { ...prev, status: 'idle', activeRouteId: null }
+          : prev,
+      );
+      return;
+    }
+
+    recordingStartedRef.current = false;
     activeRouteRef.current = null;
     const pair = getLanguagePairFromDirection(route.direction);
 

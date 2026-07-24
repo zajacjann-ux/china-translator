@@ -13,27 +13,9 @@ import { logger } from '@/infrastructure/logging/logger';
 
 const WHISPER_TRANSCRIPTIONS_URL = 'https://api.openai.com/v1/audio/transcriptions';
 
-/** React Native multipart file part — must not be cast to Blob. */
-interface ReactNativeFormDataFile {
-  uri: string;
-  name: string;
-  type: string;
-}
-
 function toUploadUri(uri: string): string {
-  if (Platform.OS === 'android') {
-    return uri.startsWith('file://') ? uri : `file://${uri}`;
-  }
-
-  return uri.startsWith('file://') ? uri : `file://${uri}`;
-}
-
-function createUploadFilePart(audioUri: string): ReactNativeFormDataFile {
-  return {
-    uri: toUploadUri(audioUri),
-    name: 'audio.m4a',
-    type: 'audio/m4a',
-  };
+  if (uri.startsWith('file://')) return uri;
+  return Platform.OS === 'android' ? `file://${uri}` : `file://${uri}`;
 }
 
 function formatWhisperError(status: number, body: string): string {
@@ -64,20 +46,25 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
       throw new AppError('RECORDING_FAILED', 'Recording file is empty before upload.');
     }
 
-    const uploadFile = createUploadFilePart(audio.uri);
+    const uploadUri = toUploadUri(audio.uri);
 
     logger.info('Whisper upload prepared', {
-      uri: uploadFile.uri,
+      uri: uploadUri,
       sizeBytes,
       durationMs: audio.durationMs,
-      mimeType: uploadFile.type,
+      mimeType: 'audio/m4a',
       language: lang.whisperCode,
       model: env.sttModel,
     });
 
     try {
       const formData = new FormData();
-      formData.append('file', uploadFile as never);
+      const file = {
+        uri: uploadUri,
+        name: 'speech.m4a',
+        type: 'audio/m4a',
+      };
+      formData.append('file', file as any);
       formData.append('model', env.sttModel);
       formData.append('language', lang.whisperCode);
       formData.append('response_format', 'json');
@@ -97,7 +84,7 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
         logger.error('Whisper API error response', {
           status: response.status,
           body: responseBody,
-          uri: audio.uri,
+          uri: uploadUri,
           sizeBytes,
         });
         throw new AppError('TRANSLATION_FAILED', formatWhisperError(response.status, responseBody), responseBody);
