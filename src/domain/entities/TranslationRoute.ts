@@ -23,14 +23,14 @@ export function buildSpeechRoutes(
     {
       id: 'i-speak',
       direction: makeDirection(userLanguage, partnerLanguage),
-      buttonLabel: 'I speak',
+      buttonLabel: 'I Speak',
       buttonFlag: user.flag,
       speaker: 'user',
     },
     {
       id: 'partner-speaks',
       direction: makeDirection(partnerLanguage, userLanguage),
-      buttonLabel: `${partner.label} speaks`,
+      buttonLabel: 'Other Person Speaks',
       buttonFlag: partner.flag,
       speaker: 'partner',
     },

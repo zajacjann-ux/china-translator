@@ -11,8 +11,9 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { ThemedText } from '@/presentation/components/ui/ThemedText';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
-import { Colors, BorderRadius, Spacing, Typography } from '@/presentation/theme';
+import { Colors, Spacing, Typography } from '@/presentation/theme';
 import type { TranslationRoute } from '@/domain/entities/TranslationRoute';
+import { MIC_BUTTON_SIZE } from '@/presentation/components/ui/VoiceMicButton';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -40,17 +41,17 @@ export function TranslationButton({
   useEffect(() => {
     if (isRecording) {
       scale.value = withRepeat(
-        withSequence(withTiming(1.03, { duration: 650 }), withTiming(1, { duration: 650 })),
+        withSequence(withTiming(1.05, { duration: 650 }), withTiming(1, { duration: 650 })),
         -1,
         false,
       );
       ringScale.value = withRepeat(
-        withSequence(withTiming(1.18, { duration: 650 }), withTiming(1, { duration: 650 })),
+        withSequence(withTiming(1.28, { duration: 650 }), withTiming(1.08, { duration: 650 })),
         -1,
         false,
       );
       ringOpacity.value = withRepeat(
-        withSequence(withTiming(0.45, { duration: 650 }), withTiming(0.08, { duration: 650 })),
+        withSequence(withTiming(0.45, { duration: 650 }), withTiming(0.1, { duration: 650 })),
         -1,
         false,
       );
@@ -85,90 +86,91 @@ export function TranslationButton({
     onPressOut?.();
   };
 
-  const backgroundColor = isRecording
-    ? palette.recording
-    : disabled
-      ? palette.primary
-      : palette.primary;
+  const buttonColor = isRecording ? palette.micRecording : palette.mic;
 
   return (
     <View style={styles.wrapper}>
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.pulseRing,
-          { backgroundColor: palette.recording },
-          animatedRingStyle,
-        ]}
-      />
-      <AnimatedPressable
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        disabled={disabled}
-        style={({ pressed }) => [
-          styles.button,
-          animatedButtonStyle,
-          {
-            backgroundColor: isRecording
-              ? palette.recording
-              : pressed
-                ? palette.primaryPressed
-                : backgroundColor,
-            opacity: disabled ? 0.55 : 1,
-          },
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel={`${route.buttonLabel}. Press and hold to speak.`}
-        accessibilityHint="Hold while speaking, release to translate"
-      >
-        <ThemedText variant="button" color="inverse" style={styles.flag}>
-          {route.buttonFlag}
-        </ThemedText>
-        <ThemedText variant="button" color="inverse" style={styles.label}>
-          {route.buttonLabel}
-        </ThemedText>
+      <View style={styles.circleArea}>
         {isRecording && (
-          <ThemedText variant="caption" color="inverse" style={styles.hint}>
-            Release to translate
-          </ThemedText>
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.pulseRing, { backgroundColor: palette.micGlow }, animatedRingStyle]}
+          />
         )}
-      </AnimatedPressable>
+        <AnimatedPressable
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          disabled={disabled}
+          style={({ pressed }: { pressed: boolean }) => [
+            styles.circle,
+            animatedButtonStyle,
+            {
+              backgroundColor: pressed && !isRecording ? palette.micPressed : buttonColor,
+              opacity: disabled ? 0.55 : 1,
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={`${route.buttonLabel}. Press and hold to speak.`}
+          accessibilityHint="Hold while speaking, release to translate"
+        >
+          <ThemedText style={styles.flag}>{route.buttonFlag}</ThemedText>
+        </AnimatedPressable>
+      </View>
+
+      <ThemedText variant="button" style={styles.label}>
+        {route.buttonLabel}
+      </ThemedText>
+
+      {isRecording && (
+        <ThemedText variant="caption" color="secondary" style={styles.hint}>
+          Release to translate
+        </ThemedText>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
-    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'stretch',
-    minHeight: 160,
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+  },
+  circleArea: {
+    width: MIC_BUTTON_SIZE + 32,
+    height: MIC_BUTTON_SIZE + 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pulseRing: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: BorderRadius.xl,
+    position: 'absolute',
+    width: MIC_BUTTON_SIZE,
+    height: MIC_BUTTON_SIZE,
+    borderRadius: MIC_BUTTON_SIZE / 2,
   },
-  button: {
-    flex: 1,
-    borderRadius: BorderRadius.xl,
-    paddingVertical: Spacing.xl,
-    paddingHorizontal: Spacing.lg,
-    justifyContent: 'center',
+  circle: {
+    width: MIC_BUTTON_SIZE,
+    height: MIC_BUTTON_SIZE,
+    borderRadius: MIC_BUTTON_SIZE / 2,
     alignItems: 'center',
-    gap: Spacing.md,
-    minHeight: 160,
+    justifyContent: 'center',
+    shadowColor: '#22C55E',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
   },
   flag: {
-    fontSize: 56,
-    lineHeight: 64,
+    fontSize: 52,
+    lineHeight: 58,
   },
   label: {
     ...Typography.button,
-    fontSize: 26,
+    fontSize: 20,
     textAlign: 'center',
   },
   hint: {
-    opacity: 0.9,
     textAlign: 'center',
   },
 });

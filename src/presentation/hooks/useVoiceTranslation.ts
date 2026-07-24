@@ -23,6 +23,8 @@ export function useVoiceTranslation(sourceLanguage: string, targetLanguage: stri
   const isRecordingRef = useRef(false);
 
   const onPressIn = useCallback(async () => {
+    if (isRecordingRef.current) return;
+
     isRecordingRef.current = true;
     setState((prev) => ({
       ...prev,
@@ -49,6 +51,7 @@ export function useVoiceTranslation(sourceLanguage: string, targetLanguage: stri
 
     isRecordingRef.current = false;
     const pair = buildLanguagePair(sourceLanguage, targetLanguage);
+
     setState((prev) => ({ ...prev, status: 'processing' }));
 
     try {
@@ -77,7 +80,6 @@ export function useVoiceTranslation(sourceLanguage: string, targetLanguage: stri
   const isProcessing = state.status === 'processing';
 
   return {
-    lastResult: state.lastResult,
     error: state.error,
     isRecording,
     isProcessing,

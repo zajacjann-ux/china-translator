@@ -3,10 +3,8 @@ type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 const LOG_PREFIX = '[Rabbitalk]';
 
 function log(level: LogLevel, message: string, data?: unknown): void {
-  if (__DEV__) {
-    const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
-    fn(`${LOG_PREFIX} ${message}`, data ?? '');
-  }
+  const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+  fn(`${LOG_PREFIX} ${message}`, data ?? '');
 }
 
 export const logger = {

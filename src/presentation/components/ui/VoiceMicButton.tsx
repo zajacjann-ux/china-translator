@@ -14,7 +14,8 @@ import { useColorScheme } from '@/presentation/hooks/useColorScheme';
 import { Colors } from '@/presentation/theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-const BUTTON_SIZE = 136;
+
+export const MIC_BUTTON_SIZE = 140;
 
 interface VoiceMicButtonProps {
   isRecording: boolean;
@@ -45,12 +46,12 @@ export function VoiceMicButton({
         false,
       );
       ringScale.value = withRepeat(
-        withSequence(withTiming(1.35, { duration: 600 }), withTiming(1.1, { duration: 600 })),
+        withSequence(withTiming(1.28, { duration: 600 }), withTiming(1.08, { duration: 600 })),
         -1,
         false,
       );
       ringOpacity.value = withRepeat(
-        withSequence(withTiming(0.5, { duration: 600 }), withTiming(0.12, { duration: 600 })),
+        withSequence(withTiming(0.45, { duration: 600 }), withTiming(0.1, { duration: 600 })),
         -1,
         false,
       );
@@ -89,10 +90,12 @@ export function VoiceMicButton({
 
   return (
     <View style={styles.wrapper}>
-      <Animated.View
-        pointerEvents="none"
-        style={[styles.pulseRing, { backgroundColor: palette.micGlow }, animatedRingStyle]}
-      />
+      {isRecording && (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.pulseRing, { backgroundColor: palette.micGlow }, animatedRingStyle]}
+        />
+      )}
       <AnimatedPressable
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
@@ -121,31 +124,32 @@ export function VoiceMicButton({
 
 const styles = StyleSheet.create({
   wrapper: {
-    width: BUTTON_SIZE + 48,
-    height: BUTTON_SIZE + 48,
+    width: MIC_BUTTON_SIZE + 40,
+    height: MIC_BUTTON_SIZE + 40,
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'center',
   },
   pulseRing: {
     position: 'absolute',
-    width: BUTTON_SIZE,
-    height: BUTTON_SIZE,
-    borderRadius: BUTTON_SIZE / 2,
+    width: MIC_BUTTON_SIZE,
+    height: MIC_BUTTON_SIZE,
+    borderRadius: MIC_BUTTON_SIZE / 2,
   },
   button: {
-    width: BUTTON_SIZE,
-    height: BUTTON_SIZE,
-    borderRadius: BUTTON_SIZE / 2,
+    width: MIC_BUTTON_SIZE,
+    height: MIC_BUTTON_SIZE,
+    borderRadius: MIC_BUTTON_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#22C55E',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
   },
   micIcon: {
-    fontSize: 52,
-    lineHeight: 58,
+    fontSize: 54,
+    lineHeight: 60,
   },
 });

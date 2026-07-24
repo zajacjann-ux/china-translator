@@ -2,6 +2,7 @@ export interface AudioRecording {
   uri: string;
   durationMs: number;
   mimeType: string;
+  fileSizeBytes: number;
 }
 
 export interface IAudioRepository {

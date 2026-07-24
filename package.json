@@ -4,8 +4,8 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start --dev-client",
-    "start:dev": "expo start --dev-client",
+    "start": "expo start",
+    "start:dev": "expo start",
     "android": "expo run:android",
     "android:device": "expo run:android --device",
     "prebuild:android": "expo prebuild --platform android --clean",
@@ -25,7 +25,6 @@
     "expo-camera": "~56.0.0",
     "expo-clipboard": "~56.0.4",
     "expo-constants": "~56.0.16",
-    "expo-dev-client": "~56.0.24",
     "expo-file-system": "~56.0.0",
     "expo-haptics": "~56.0.0",
     "expo-linking": "~56.0.16",

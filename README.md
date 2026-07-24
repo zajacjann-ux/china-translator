@@ -1,67 +1,57 @@
 # Rabbitalk
 
-AI travel communication assistant — text translation MVP.
+Voice-first AI travel translator.
 
-## Android Development Build (SDK 56)
+## Build profiles
 
-Rabbitalk uses **EAS Build** and **expo-dev-client** — not Expo Go.
+| Profile | Use case | Output |
+|---------|----------|--------|
+| Local dev | Quick testing with **Expo Go** | Scan QR from `npm start` |
+| `preview` | Internal testing on device | Standalone signed APK |
+| `production` | Distribution | Standalone signed APK |
 
-| Profile | Purpose | Output |
-|---------|---------|--------|
-| `development` | Dev client on physical device + Metro | APK |
-| `preview` | Internal release-like testing | Signed APK |
-| `production` | Store-ready / distributable builds | Signed APK |
+Preview and production builds launch **Rabbitalk directly** — no development client.
 
-- **Package:** `com.rabbitalk.app`
-- **EAS project ID:** configured in `app.config.ts`
-
-## Local setup
+## Local development (Expo Go)
 
 ```bash
 npm install
-cp .env.example .env
-# Edit .env — set EXPO_PUBLIC_OPENAI_API_KEY=sk-...
+npm start
 ```
 
-## EAS environment (cloud builds)
+Scan the QR code with **Expo Go** (SDK 56) on your phone.
 
-Set your OpenAI key for all build profiles:
+## EAS environment
+
+Set your OpenAI key for cloud builds:
 
 ```bash
 eas env:create EXPO_PUBLIC_OPENAI_API_KEY \
   --value sk-your-key-here \
   --environment development,preview,production \
-  --visibility plaintext
+  --visibility plaintext \
+  --scope project
 ```
 
-## Build & run on Android device
+## Build standalone APK
 
 ```bash
-# 1. Build development APK (first time)
-npm run build:dev:android
+# Internal testing
+npm run build:preview:android
 
-# 2. Install APK from EAS download link on your phone
-
-# 3. Start Metro for dev client
-npm start
-
-# 4. Open Rabbitalk on phone — it connects to your dev server
-```
-
-## Production APK
-
-```bash
+# Production
 npm run build:prod:android
 ```
 
-EAS manages Android signing credentials on first production build.
+Install the APK from the EAS build page. The app opens directly as Rabbitalk.
 
-## Project structure
+## Regenerate native Android project
 
+```bash
+npm run prebuild:android
 ```
-src/
-├── config/languages.config.ts
-├── domain/use-cases/TranslateTextUseCase.ts
-├── app/index.tsx
-└── presentation/hooks/useTextTranslation.ts
-```
+
+## Package
+
+- App: **Rabbitalk**
+- Android: `com.rabbitalk.app`
