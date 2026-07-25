@@ -36,17 +36,17 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
     const env = getEnvConfig();
     const lang = getLanguage(language);
 
-    const recordingFile = new File(audio.uri);
-    if (!recordingFile.exists) {
+    const uploadUri = toUploadUri(audio.uri);
+    const file = new File(uploadUri);
+
+    if (!file.exists) {
       throw new AppError('RECORDING_FAILED', 'Recording file does not exist before upload.');
     }
 
-    const sizeBytes = audio.fileSizeBytes || recordingFile.size;
+    const sizeBytes = audio.fileSizeBytes || file.size;
     if (!sizeBytes || sizeBytes <= 0) {
       throw new AppError('RECORDING_FAILED', 'Recording file is empty before upload.');
     }
-
-    const uploadUri = toUploadUri(audio.uri);
 
     logger.info('Whisper upload prepared', {
       uri: uploadUri,
@@ -59,11 +59,8 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
 
     try {
       const formData = new FormData();
-      const file = {
-        uri: uploadUri,
-        name: 'speech.m4a',
-        type: 'audio/m4a',
-      };
+      Object.defineProperty(file, 'name', { value: 'speech.m4a', configurable: true });
+      Object.defineProperty(file, 'type', { value: 'audio/m4a', configurable: true });
       formData.append('file', file as any);
       formData.append('model', env.sttModel);
       formData.append('language', lang.whisperCode);
