@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { File } from 'expo-file-system';
+import { File, UploadType } from 'expo-file-system';
 import type {
   ISpeechToTextRepository,
   SpeechToTextResult,
@@ -12,6 +12,7 @@ import { AppError } from '@/shared/errors/AppError';
 import { logger } from '@/infrastructure/logging/logger';
 
 const WHISPER_TRANSCRIPTIONS_URL = 'https://api.openai.com/v1/audio/transcriptions';
+const WHISPER_MIME_TYPE = 'audio/m4a';
 
 function toUploadUri(uri: string): string {
   if (uri.startsWith('file://')) return uri;
@@ -52,42 +53,43 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
       uri: uploadUri,
       sizeBytes,
       durationMs: audio.durationMs,
-      mimeType: 'audio/m4a',
+      mimeType: WHISPER_MIME_TYPE,
       language: lang.whisperCode,
       model: env.sttModel,
     });
 
     try {
-      const formData = new FormData();
-      Object.defineProperty(file, 'name', { value: 'speech.m4a', configurable: true });
-      Object.defineProperty(file, 'type', { value: 'audio/m4a', configurable: true });
-      formData.append('file', file as any);
-      formData.append('model', env.sttModel);
-      formData.append('language', lang.whisperCode);
-      formData.append('response_format', 'json');
-
-      const response = await fetch(WHISPER_TRANSCRIPTIONS_URL, {
-        method: 'POST',
+      const result = await file.upload(WHISPER_TRANSCRIPTIONS_URL, {
+        uploadType: UploadType.MULTIPART,
+        fieldName: 'file',
+        mimeType: WHISPER_MIME_TYPE,
+        httpMethod: 'POST',
         headers: {
           Authorization: `Bearer ${env.openAiApiKey}`,
           Accept: 'application/json',
         },
-        body: formData,
+        parameters: {
+          model: env.sttModel,
+          language: lang.whisperCode,
+          response_format: 'json',
+        },
       });
 
-      const responseBody = await response.text();
-
-      if (!response.ok) {
+      if (result.status < 200 || result.status >= 300) {
         logger.error('Whisper API error response', {
-          status: response.status,
-          body: responseBody,
+          status: result.status,
+          body: result.body,
           uri: uploadUri,
           sizeBytes,
         });
-        throw new AppError('TRANSLATION_FAILED', formatWhisperError(response.status, responseBody), responseBody);
+        throw new AppError(
+          'TRANSLATION_FAILED',
+          formatWhisperError(result.status, result.body),
+          result.body,
+        );
       }
 
-      const parsed = JSON.parse(responseBody) as { text?: string };
+      const parsed = JSON.parse(result.body) as { text?: string };
       const text = parsed.text?.trim() ?? '';
 
       logger.info('Whisper transcription succeeded', {

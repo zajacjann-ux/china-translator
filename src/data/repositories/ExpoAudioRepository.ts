@@ -29,8 +29,9 @@ const WHISPER_RECORDING_OPTIONS: RecordingOptions = {
   },
 };
 
-const FILE_READY_ATTEMPTS = 12;
-const FILE_READY_DELAY_MS = 50;
+const FILE_READY_ATTEMPTS = 20;
+const FILE_READY_DELAY_MS = 75;
+const MIN_RECORDING_BYTES = 1024;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -42,16 +43,29 @@ function normalizeRecordingUri(uri: string): string {
 }
 
 async function waitForRecordingFile(uri: string): Promise<{ fileSizeBytes: number; mimeType: string }> {
+  let lastSize = 0;
+
   for (let attempt = 0; attempt < FILE_READY_ATTEMPTS; attempt += 1) {
     const file = new File(uri);
     if (file.exists && file.size > 0) {
-      return {
-        fileSizeBytes: file.size,
-        mimeType: 'audio/m4a',
-      };
+      if (file.size === lastSize && file.size >= MIN_RECORDING_BYTES) {
+        return {
+          fileSizeBytes: file.size,
+          mimeType: 'audio/m4a',
+        };
+      }
+
+      lastSize = file.size;
     }
 
     await sleep(FILE_READY_DELAY_MS);
+  }
+
+  if (lastSize > 0) {
+    return {
+      fileSizeBytes: lastSize,
+      mimeType: 'audio/m4a',
+    };
   }
 
   throw new AppError('RECORDING_FAILED', 'Recording file is empty.');
