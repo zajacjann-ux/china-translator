@@ -29,9 +29,9 @@ const WHISPER_RECORDING_OPTIONS: RecordingOptions = {
   },
 };
 
-const FILE_READY_ATTEMPTS = 20;
-const FILE_READY_DELAY_MS = 75;
-const MIN_RECORDING_BYTES = 1024;
+const FILE_READY_ATTEMPTS = 15;
+const FILE_READY_DELAY_MS = 40;
+const MIN_RECORDING_BYTES = 512;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -44,21 +44,29 @@ function normalizeRecordingUri(uri: string): string {
 
 async function waitForRecordingFile(uri: string): Promise<{ fileSizeBytes: number; mimeType: string }> {
   let lastSize = 0;
+  let stableReads = 0;
 
   for (let attempt = 0; attempt < FILE_READY_ATTEMPTS; attempt += 1) {
     const file = new File(uri);
     if (file.exists && file.size > 0) {
-      if (file.size === lastSize && file.size >= MIN_RECORDING_BYTES) {
+      if (file.size === lastSize) {
+        stableReads += 1;
+      } else {
+        stableReads = 0;
+        lastSize = file.size;
+      }
+
+      if (stableReads >= 1 && file.size >= MIN_RECORDING_BYTES) {
         return {
           fileSizeBytes: file.size,
           mimeType: 'audio/m4a',
         };
       }
-
-      lastSize = file.size;
     }
 
-    await sleep(FILE_READY_DELAY_MS);
+    if (attempt > 0) {
+      await sleep(FILE_READY_DELAY_MS);
+    }
   }
 
   if (lastSize > 0) {
@@ -167,7 +175,7 @@ export class ExpoAudioRepository implements IAudioRepository {
 
       this.releaseRecorderInternal();
 
-      await setAudioModeAsync({
+      void setAudioModeAsync({
         allowsRecording: false,
         playsInSilentMode: true,
       });

@@ -3,6 +3,8 @@ import { SafeScreen } from '@/presentation/components/layout/SafeScreen';
 import { LanguageSelector } from '@/presentation/components/language/LanguageSelector';
 import { TranslationButton } from '@/presentation/components/ui/TranslationButton';
 import { ErrorBanner } from '@/presentation/components/ui/ErrorBanner';
+import { ConversationHistory } from '@/presentation/components/conversation/ConversationHistory';
+import { ClearConversationButton } from '@/presentation/components/conversation/ClearConversationButton';
 import { useVoiceTranslation } from '@/presentation/hooks/useVoiceTranslation';
 import { useLanguagePair } from '@/presentation/context/LanguagePairContext';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
@@ -11,8 +13,9 @@ import { Colors, Spacing } from '@/presentation/theme';
 export default function HomeScreen() {
   const scheme = useColorScheme();
   const palette = Colors[scheme];
-  const { speechRoutes, isReady } = useLanguagePair();
+  const { speechRoutes, userLang, partnerLang, isReady } = useLanguagePair();
   const {
+    messages,
     error,
     isRecording,
     isProcessing,
@@ -20,6 +23,7 @@ export default function HomeScreen() {
     onPressIn,
     onPressOut,
     clearError,
+    clearConversation,
   } = useVoiceTranslation();
 
   if (!isReady) {
@@ -37,7 +41,21 @@ export default function HomeScreen() {
   return (
     <SafeScreen padded={false}>
       <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerSpacer} />
+          <ClearConversationButton
+            onClear={clearConversation}
+            disabled={isRecording || isProcessing || messages.length === 0}
+          />
+        </View>
+
         <LanguageSelector />
+
+        <ConversationHistory
+          messages={messages}
+          userFlag={userLang.flag}
+          partnerFlag={partnerLang.flag}
+        />
 
         <View style={styles.buttons}>
           <TranslationButton
@@ -73,15 +91,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.sm,
     paddingBottom: Spacing.lg,
     gap: Spacing.md,
   },
-  buttons: {
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    minHeight: 40,
+  },
+  headerSpacer: {
     flex: 1,
+  },
+  buttons: {
     gap: Spacing.lg,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingTop: Spacing.xs,
   },
   footer: {
     alignItems: 'center',

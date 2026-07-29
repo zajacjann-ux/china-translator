@@ -26,6 +26,8 @@ export { createRecordingSession } from './RecordingSession';
 export type { PhrasebookCategoryId, PhrasebookCategory, Phrase } from './Phrasebook';
 export { PHRASEBOOK_CATEGORIES } from './Phrasebook';
 export type { OcrResult, OcrOptions } from './OcrResult';
+export type { ConversationMessage, ConversationSpeaker } from './ConversationMessage';
+export { createConversationMessage } from './ConversationMessage';
 
 /** Re-export config for documentation and tooling */
 export { LANGUAGE_CONFIG } from '@/config/languages.config';
