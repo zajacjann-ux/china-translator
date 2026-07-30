@@ -11,6 +11,7 @@ import { TranslateSpeechUseCase } from '@/domain/use-cases/TranslateSpeechUseCas
 import { TranslateCameraUseCase } from '@/domain/use-cases/TranslateCameraUseCase';
 import { PhrasebookUseCase } from '@/domain/use-cases/PhrasebookUseCase';
 import { ConversationModeUseCase } from '@/domain/use-cases/ConversationModeUseCase';
+import { ReplayTranslationAudioUseCase } from '@/domain/use-cases/ReplayTranslationAudioUseCase';
 
 class Container {
   readonly audioRepository = new ExpoAudioRepository();
@@ -48,6 +49,11 @@ class Container {
   );
 
   readonly conversationModeUseCase = new ConversationModeUseCase();
+
+  readonly replayTranslationAudioUseCase = new ReplayTranslationAudioUseCase(
+    this.textToSpeechRepository,
+    this.audioRepository,
+  );
 }
 
 export const container = new Container();

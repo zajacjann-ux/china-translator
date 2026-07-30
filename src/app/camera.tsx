@@ -4,30 +4,26 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { SafeScreen } from '@/presentation/components/layout/SafeScreen';
-import { ResultDisplay } from '@/presentation/components/ui/ResultDisplay';
 import { ErrorBanner } from '@/presentation/components/ui/ErrorBanner';
 import { ThemedText } from '@/presentation/components/ui/ThemedText';
 import { useLanguagePair } from '@/presentation/context/LanguagePairContext';
+import { useConversation } from '@/presentation/context/ConversationContext';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
 import { Colors, BorderRadius, Spacing } from '@/presentation/theme';
 import { container } from '@/infrastructure/di/container';
 import { getErrorMessage } from '@/shared/errors/AppError';
-import type { TranslationResult } from '@/domain/entities/TranslationResult';
 
 export default function CameraScreen() {
   const router = useRouter();
   const scheme = useColorScheme();
   const palette = Colors[scheme];
   const { userLanguage, partnerLanguage } = useLanguagePair();
+  const { addCameraMessage } = useConversation();
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [result, setResult] = useState<TranslationResult | null>(null);
-  const [speechUri, setSpeechUri] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isReplaying, setIsReplaying] = useState(false);
-  const [copyFeedback, setCopyFeedback] = useState(false);
 
   const captureAndTranslate = useCallback(async () => {
     if (!cameraRef.current || isProcessing) return;
@@ -35,7 +31,6 @@ export default function CameraScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsProcessing(true);
     setError(null);
-    setResult(null);
 
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.8, shutterSound: false });
@@ -45,40 +40,19 @@ export default function CameraScreen() {
 
       const output = await container.translateCameraUseCase.execute(
         photo.uri,
-        userLanguage,
         partnerLanguage,
+        userLanguage,
+        { speak: false },
       );
 
-      await container.conversationHistoryRepository.saveConversation(output.result);
-      setResult(output.result);
-      setSpeechUri(output.speechAudioUri);
+      addCameraMessage(output.result.originalText, output.result.translatedText);
+      router.back();
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
       setIsProcessing(false);
     }
-  }, [isProcessing, partnerLanguage, userLanguage]);
-
-  const replaySpeech = async () => {
-    const uri = speechUri ?? result?.speechAudioUri;
-    if (!uri) return;
-    setIsReplaying(true);
-    try {
-      await container.translateSpeechUseCase.replaySpeech(uri);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setIsReplaying(false);
-    }
-  };
-
-  const copyTranslation = async () => {
-    if (!result?.translatedText) return;
-    const Clipboard = await import('expo-clipboard');
-    await Clipboard.setStringAsync(result.translatedText);
-    setCopyFeedback(true);
-    setTimeout(() => setCopyFeedback(false), 2000);
-  };
+  }, [addCameraMessage, isProcessing, partnerLanguage, router, userLanguage]);
 
   if (!permission) {
     return (
@@ -124,52 +98,32 @@ export default function CameraScreen() {
           <View style={styles.backButton} />
         </View>
 
-        {!result ? (
-          <View style={styles.cameraWrap}>
-            <CameraView ref={cameraRef} style={styles.camera} facing="back" />
-            {isProcessing && (
-              <View style={styles.overlay}>
-                <ActivityIndicator size="large" color="#fff" />
-                <ThemedText variant="subtitle" color="inverse">
-                  Reading text…
-                </ThemedText>
-              </View>
-            )}
-          </View>
-        ) : (
-          <View style={styles.resultWrap}>
-            <ResultDisplay
-              result={result}
-              onReplay={replaySpeech}
-              onCopy={copyTranslation}
-              isReplaying={isReplaying}
-              copyFeedback={copyFeedback}
-            />
-            <Pressable
-              onPress={() => {
-                setResult(null);
-                setSpeechUri(null);
-              }}
-              style={[styles.retakeButton, { borderColor: palette.border }]}
-            >
-              <ThemedText variant="subtitle">Take another photo</ThemedText>
-            </Pressable>
-          </View>
-        )}
+        <View style={styles.cameraWrap}>
+          <CameraView ref={cameraRef} style={styles.camera} facing="back" />
+          {isProcessing && (
+            <View style={styles.overlay}>
+              <ActivityIndicator size="large" color="#fff" />
+              <ThemedText variant="subtitle" color="inverse">
+                Reading text…
+              </ThemedText>
+            </View>
+          )}
+        </View>
 
         {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
-        {!result && (
-          <Pressable
-            onPress={captureAndTranslate}
-            disabled={isProcessing}
-            style={[styles.captureButton, { backgroundColor: palette.primary, opacity: isProcessing ? 0.6 : 1 }]}
-          >
-            <ThemedText variant="button" color="inverse">
-              {isProcessing ? 'Processing…' : 'Capture & Translate'}
-            </ThemedText>
-          </Pressable>
-        )}
+        <Pressable
+          onPress={captureAndTranslate}
+          disabled={isProcessing}
+          style={[
+            styles.captureButton,
+            { backgroundColor: palette.primary, opacity: isProcessing ? 0.6 : 1 },
+          ]}
+        >
+          <ThemedText variant="button" color="inverse">
+            {isProcessing ? 'Processing…' : 'Capture & Translate'}
+          </ThemedText>
+        </Pressable>
       </View>
     </SafeScreen>
   );
@@ -203,7 +157,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -215,17 +169,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: Spacing.lg,
-  },
-  resultWrap: {
-    flex: 1,
-    gap: Spacing.md,
-  },
-  retakeButton: {
-    minHeight: 56,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   permissionBox: {
     flex: 1,

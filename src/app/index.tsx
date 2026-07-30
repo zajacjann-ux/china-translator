@@ -5,7 +5,9 @@ import { TranslationButton } from '@/presentation/components/ui/TranslationButto
 import { ErrorBanner } from '@/presentation/components/ui/ErrorBanner';
 import { ConversationHistory } from '@/presentation/components/conversation/ConversationHistory';
 import { ClearConversationButton } from '@/presentation/components/conversation/ClearConversationButton';
+import { CameraHeaderButton } from '@/presentation/components/conversation/CameraHeaderButton';
 import { useVoiceTranslation } from '@/presentation/hooks/useVoiceTranslation';
+import { useReplayTranslationAudio } from '@/presentation/hooks/useReplayTranslationAudio';
 import { useLanguagePair } from '@/presentation/context/LanguagePairContext';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
 import { Colors, Spacing } from '@/presentation/theme';
@@ -13,7 +15,8 @@ import { Colors, Spacing } from '@/presentation/theme';
 export default function HomeScreen() {
   const scheme = useColorScheme();
   const palette = Colors[scheme];
-  const { speechRoutes, userLang, partnerLang, isReady } = useLanguagePair();
+  const { speechRoutes, userLang, partnerLang, userLanguage, partnerLanguage, isReady } =
+    useLanguagePair();
   const {
     messages,
     error,
@@ -25,6 +28,12 @@ export default function HomeScreen() {
     clearError,
     clearConversation,
   } = useVoiceTranslation();
+  const {
+    replayMessage,
+    replayingMessageId,
+    replayError,
+    clearReplayError,
+  } = useReplayTranslationAudio(userLanguage, partnerLanguage);
 
   if (!isReady) {
     return (
@@ -42,6 +51,7 @@ export default function HomeScreen() {
     <SafeScreen padded={false}>
       <View style={styles.container}>
         <View style={styles.header}>
+          <CameraHeaderButton disabled={isRecording || isProcessing} />
           <View style={styles.headerSpacer} />
           <ClearConversationButton
             onClear={clearConversation}
@@ -55,31 +65,42 @@ export default function HomeScreen() {
           messages={messages}
           userFlag={userLang.flag}
           partnerFlag={partnerLang.flag}
+          onReplayMessage={replayMessage}
+          replayingMessageId={replayingMessageId}
+          replayDisabled={isRecording || isProcessing}
         />
 
-        <View style={styles.buttons}>
-          <TranslationButton
-            route={userRoute}
-            isRecording={isRecording && activeRouteId === userRoute.id}
-            isProcessing={isProcessing && activeRouteId === userRoute.id}
-            disabled={isProcessing || (isRecording && activeRouteId !== userRoute.id)}
-            onPressIn={() => onPressIn(userRoute)}
-            onPressOut={onPressOut}
-          />
+        <View style={styles.bottomBar}>
+          <View style={styles.buttonsRow}>
+            <TranslationButton
+              route={userRoute}
+              isRecording={isRecording && activeRouteId === userRoute.id}
+              isProcessing={isProcessing && activeRouteId === userRoute.id}
+              disabled={isProcessing || (isRecording && activeRouteId !== userRoute.id)}
+              onPressIn={() => onPressIn(userRoute)}
+              onPressOut={onPressOut}
+            />
 
-          <TranslationButton
-            route={partnerRoute}
-            isRecording={isRecording && activeRouteId === partnerRoute.id}
-            isProcessing={isProcessing && activeRouteId === partnerRoute.id}
-            disabled={isProcessing || (isRecording && activeRouteId !== partnerRoute.id)}
-            onPressIn={() => onPressIn(partnerRoute)}
-            onPressOut={onPressOut}
-          />
+            <TranslationButton
+              route={partnerRoute}
+              isRecording={isRecording && activeRouteId === partnerRoute.id}
+              isProcessing={isProcessing && activeRouteId === partnerRoute.id}
+              disabled={isProcessing || (isRecording && activeRouteId !== partnerRoute.id)}
+              onPressIn={() => onPressIn(partnerRoute)}
+              onPressOut={onPressOut}
+            />
+          </View>
         </View>
 
         {error && (
           <View style={styles.footer}>
             <ErrorBanner message={error} onDismiss={clearError} />
+          </View>
+        )}
+
+        {replayError && (
+          <View style={styles.footer}>
+            <ErrorBanner message={replayError} onDismiss={clearReplayError} />
           </View>
         )}
       </View>
@@ -92,26 +113,31 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing.lg,
-    gap: Spacing.md,
+    paddingBottom: Spacing.md,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    minHeight: 40,
+    justifyContent: 'space-between',
+    minHeight: 36,
+    marginBottom: Spacing.sm,
   },
   headerSpacer: {
     flex: 1,
   },
-  buttons: {
+  bottomBar: {
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
+  },
+  buttonsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     gap: Spacing.lg,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: Spacing.xs,
   },
   footer: {
     alignItems: 'center',
+    marginTop: Spacing.sm,
   },
   loading: {
     flex: 1,

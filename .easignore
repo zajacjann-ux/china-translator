@@ -1,7 +1,6 @@
-.git/
 .expo/
-dist/
-web-build/
-node_modules/
 android/
 ios/
+node_modules/
+.git/
+*.log

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RecordingStatus } from '@/domain/entities/RecordingSession';
 import type { TranslationRoute } from '@/domain/entities/TranslationRoute';
-import type { ConversationMessage, ConversationSpeaker } from '@/domain/entities/ConversationMessage';
+import type { ConversationSpeaker } from '@/domain/entities/ConversationMessage';
 import { createConversationMessage } from '@/domain/entities/ConversationMessage';
 import { getLanguagePairFromDirection } from '@/domain/entities/TranslationDirection';
+import { useConversation } from '@/presentation/context/ConversationContext';
 import { container } from '@/infrastructure/di/container';
 import { getErrorMessage } from '@/shared/errors/AppError';
 import { logger } from '@/infrastructure/logging/logger';
@@ -12,14 +13,12 @@ import { generateId } from '@/shared/utils/id';
 interface VoiceTranslationState {
   status: RecordingStatus;
   activeRouteId: string | null;
-  messages: ConversationMessage[];
   error: string | null;
 }
 
 const initialState: VoiceTranslationState = {
   status: 'idle',
   activeRouteId: null,
-  messages: [],
   error: null,
 };
 
@@ -28,6 +27,7 @@ function toConversationSpeaker(route: TranslationRoute): ConversationSpeaker {
 }
 
 export function useVoiceTranslation() {
+  const { messages, appendMessage, updateMessage, removeMessage, clearMessages } = useConversation();
   const [state, setState] = useState<VoiceTranslationState>(initialState);
   const activeRouteRef = useRef<TranslationRoute | null>(null);
   const recordingStartedRef = useRef(false);
@@ -118,45 +118,32 @@ export function useVoiceTranslation() {
 
           const messageId = generateId();
           pendingMessageIdRef.current = messageId;
-          const message = createConversationMessage({
-            id: messageId,
-            speaker,
-            originalText,
-            translatedText: '',
-          });
-
-          setState((prev) => ({
-            ...prev,
-            messages: [...prev.messages, message],
-          }));
+          appendMessage(
+            createConversationMessage({
+              id: messageId,
+              speaker,
+              originalText,
+              translatedText: '',
+            }),
+          );
         },
         onTranslated: (originalText, translatedText) => {
           if (speaker === 'me') {
             const messageId = pendingMessageIdRef.current;
             if (!messageId) return;
 
-            setState((prev) => ({
-              ...prev,
-              messages: prev.messages.map((message) =>
-                message.id === messageId
-                  ? { ...message, originalText, translatedText }
-                  : message,
-              ),
-            }));
+            updateMessage(messageId, { originalText, translatedText });
             pendingMessageIdRef.current = null;
             return;
           }
 
-          const message = createConversationMessage({
-            speaker,
-            originalText,
-            translatedText,
-          });
-
-          setState((prev) => ({
-            ...prev,
-            messages: [...prev.messages, message],
-          }));
+          appendMessage(
+            createConversationMessage({
+              speaker,
+              originalText,
+              translatedText,
+            }),
+          );
         },
       });
 
@@ -171,22 +158,18 @@ export function useVoiceTranslation() {
       const failedMessageId = pendingMessageIdRef.current;
       pendingMessageIdRef.current = null;
 
-      setState((prev) => {
-        const messages =
-          failedMessageId && speaker === 'me'
-            ? prev.messages.filter((message) => message.id !== failedMessageId)
-            : prev.messages;
+      if (failedMessageId && speaker === 'me') {
+        removeMessage(failedMessageId);
+      }
 
-        return {
-          ...prev,
-          status: 'error',
-          activeRouteId: null,
-          messages,
-          error: getErrorMessage(error),
-        };
-      });
+      setState((prev) => ({
+        ...prev,
+        status: 'error',
+        activeRouteId: null,
+        error: getErrorMessage(error),
+      }));
     }
-  }, []);
+  }, [appendMessage, removeMessage, updateMessage]);
 
   const clearError = useCallback(() => {
     setState((prev) => ({ ...prev, error: null, status: 'idle' }));
@@ -194,20 +177,20 @@ export function useVoiceTranslation() {
 
   const clearConversation = useCallback(() => {
     pendingMessageIdRef.current = null;
+    clearMessages();
     setState((prev) => ({
       ...prev,
-      messages: [],
       error: null,
       status: 'idle',
       activeRouteId: null,
     }));
-  }, []);
+  }, [clearMessages]);
 
   const isRecording = state.status === 'recording';
   const isProcessing = state.status === 'processing';
 
   return {
-    messages: state.messages,
+    messages,
     error: state.error,
     isRecording,
     isProcessing,

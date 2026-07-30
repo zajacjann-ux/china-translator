@@ -9,9 +9,19 @@ interface ConversationHistoryProps {
   messages: ConversationMessage[];
   userFlag: string;
   partnerFlag: string;
+  onReplayMessage?: (message: ConversationMessage) => void;
+  replayingMessageId?: string | null;
+  replayDisabled?: boolean;
 }
 
-export function ConversationHistory({ messages, userFlag, partnerFlag }: ConversationHistoryProps) {
+export function ConversationHistory({
+  messages,
+  userFlag,
+  partnerFlag,
+  onReplayMessage,
+  replayingMessageId = null,
+  replayDisabled = false,
+}: ConversationHistoryProps) {
   const listRef = useRef<FlatList<ConversationMessage>>(null);
 
   const scrollToBottom = useCallback((animated: boolean) => {
@@ -28,9 +38,12 @@ export function ConversationHistory({ messages, userFlag, partnerFlag }: Convers
       <ConversationBubble
         message={item}
         flag={item.speaker === 'me' ? userFlag : partnerFlag}
+        onReplay={onReplayMessage}
+        isReplaying={replayingMessageId === item.id}
+        replayDisabled={replayDisabled}
       />
     ),
-    [partnerFlag, userFlag],
+    [onReplayMessage, partnerFlag, replayDisabled, replayingMessageId, userFlag],
   );
 
   const keyExtractor = useCallback((item: ConversationMessage) => item.id, []);

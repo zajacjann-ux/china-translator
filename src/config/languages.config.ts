@@ -83,5 +83,17 @@ export const LANGUAGE_CONFIG: LanguageConfig = {
       ttsEnabled: true,
       ttsVoice: 'nova',
     },
+    {
+      code: 'id',
+      label: 'Indonesian',
+      nativeLabel: 'Bahasa Indonesia',
+      flag: '🇮🇩',
+      whisperCode: 'id',
+      speechLocale: 'id-ID',
+      sttEnabled: true,
+      translationEnabled: true,
+      ttsEnabled: true,
+      ttsVoice: 'nova',
+    },
   ],
 };

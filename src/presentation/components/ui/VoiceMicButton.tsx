@@ -16,6 +16,8 @@ import { Colors } from '@/presentation/theme';
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export const MIC_BUTTON_SIZE = 140;
+/** Compact size for side-by-side voice buttons on the home screen. */
+export const HORIZONTAL_MIC_BUTTON_SIZE = 112;
 
 interface VoiceMicButtonProps {
   isRecording: boolean;

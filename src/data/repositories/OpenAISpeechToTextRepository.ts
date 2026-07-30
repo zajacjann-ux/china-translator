@@ -10,6 +10,8 @@ import { assertLanguageSupportsStt, getLanguage } from '@/domain/entities/Langua
 import { getEnvConfig } from '@/infrastructure/config/env';
 import { AppError } from '@/shared/errors/AppError';
 import { logger } from '@/infrastructure/logging/logger';
+import { translationDebug } from '@/infrastructure/logging/translationDebug';
+import { markPipelineTiming } from '@/infrastructure/logging/translationTiming';
 
 const WHISPER_TRANSCRIPTIONS_URL = 'https://api.openai.com/v1/audio/transcriptions';
 const WHISPER_MIME_TYPE = 'audio/m4a';
@@ -59,6 +61,9 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
     });
 
     try {
+      markPipelineTiming('stt_start');
+      markPipelineTiming('audio_upload_start');
+
       const result = await file.upload(WHISPER_TRANSCRIPTIONS_URL, {
         uploadType: UploadType.MULTIPART,
         fieldName: 'file',
@@ -74,6 +79,8 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
           response_format: 'json',
         },
       });
+
+      markPipelineTiming('audio_upload_end');
 
       if (result.status < 200 || result.status >= 300) {
         logger.error('Whisper API error response', {
@@ -100,6 +107,15 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
       if (!text) {
         throw new AppError('EMPTY_TRANSCRIPTION', 'No speech detected. Please try again.');
       }
+
+      translationDebug.whisperResult({
+        originalText: text,
+        detectedSourceLanguage: lang.whisperCode,
+        model: env.sttModel,
+        durationMs: audio.durationMs,
+      });
+
+      markPipelineTiming('stt_end');
 
       return {
         text,

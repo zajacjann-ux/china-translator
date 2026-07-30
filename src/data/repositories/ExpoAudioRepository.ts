@@ -12,6 +12,11 @@ import { File } from 'expo-file-system';
 import type { IAudioRepository, AudioRecording } from '@/domain/repositories/IAudioRepository';
 import { AppError } from '@/shared/errors/AppError';
 import { logger } from '@/infrastructure/logging/logger';
+import {
+  completePipelineTiming,
+  markPipelineTiming,
+} from '@/infrastructure/logging/translationTiming';
+import { translationDebug } from '@/infrastructure/logging/translationDebug';
 
 type AudioRecorderInstance = InstanceType<typeof AudioModule.AudioRecorder>;
 type ReleasableNativeObject = { release?: () => void };
@@ -198,6 +203,9 @@ export class ExpoAudioRepository implements IAudioRepository {
         const player = createAudioPlayer(uri);
         this.player = player;
         player.play();
+        markPipelineTiming('audio_playback_start');
+        translationDebug.audioPlaybackStarted({ uri });
+        completePipelineTiming();
       } catch (error) {
         logger.error('Playback failed', error);
         throw AppError.fromUnknown(error, 'Failed to play audio.');

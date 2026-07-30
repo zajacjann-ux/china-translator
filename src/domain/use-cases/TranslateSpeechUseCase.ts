@@ -14,6 +14,12 @@ import {
 import { AppError } from '@/shared/errors/AppError';
 import { MIN_RECORDING_MS } from '@/shared/constants';
 import { logger } from '@/infrastructure/logging/logger';
+import { DEFAULT_TRANSLATION_CONTEXT } from '@/config/translation.config';
+import {
+  beginPipelineTiming,
+  cancelPipelineTiming,
+  markPipelineTiming,
+} from '@/infrastructure/logging/translationTiming';
 
 export interface TranslateSpeechOutput {
   result: TranslationResult;
@@ -46,52 +52,61 @@ export class TranslateSpeechUseCase {
     progress?: TranslateSpeechProgressHandlers,
   ): Promise<TranslateSpeechOutput> {
     this.assertPairSupported(pair.sourceLanguage, pair.targetLanguage);
+    beginPipelineTiming();
 
-    const recording = await this.audioRepository.stopRecording();
+    try {
+      const recording = await this.audioRepository.stopRecording();
+      markPipelineTiming('recording_finished');
 
-    if (recording.durationMs < MIN_RECORDING_MS) {
-      throw new AppError('EMPTY_TRANSCRIPTION', 'Hold the button longer while speaking.');
-    }
-
-    const sttResult = await this.speechToTextRepository.transcribe(recording, pair.sourceLanguage);
-    const originalText = sttResult.text.trim();
-    if (!originalText) {
-      throw new AppError('EMPTY_TRANSCRIPTION', 'No speech detected. Please try again.');
-    }
-
-    progress?.onTranscribed?.(originalText);
-
-    const translatedText = await this.translationRepository.translate(
-      originalText,
-      pair.sourceLanguage,
-      pair.targetLanguage,
-    );
-
-    progress?.onTranslated?.(originalText, translatedText);
-
-    const result = createTranslationResult({
-      direction: pair.direction,
-      sourceLanguage: pair.sourceLanguage,
-      targetLanguage: pair.targetLanguage,
-      mode: 'speech',
-      originalText,
-      translatedText,
-      recordingDurationMs: recording.durationMs,
-    });
-
-    void (async () => {
-      try {
-        const ttsResult = await this.textToSpeechRepository.synthesize(
-          translatedText,
-          pair.targetLanguage,
-        );
-        await this.audioRepository.playAudio(ttsResult.audioUri);
-      } catch (error) {
-        logger.error('TTS pipeline failed', error);
+      if (recording.durationMs < MIN_RECORDING_MS) {
+        throw new AppError('EMPTY_TRANSCRIPTION', 'Hold the button longer while speaking.');
       }
-    })();
 
-    return { result, speechAudioUri: result.speechAudioUri ?? '' };
+      const sttResult = await this.speechToTextRepository.transcribe(recording, pair.sourceLanguage);
+      const originalText = sttResult.text.trim();
+      if (!originalText) {
+        throw new AppError('EMPTY_TRANSCRIPTION', 'No speech detected. Please try again.');
+      }
+
+      progress?.onTranscribed?.(originalText);
+
+      const translatedText = await this.translationRepository.translate(
+        originalText,
+        pair.sourceLanguage,
+        pair.targetLanguage,
+        DEFAULT_TRANSLATION_CONTEXT,
+      );
+
+      progress?.onTranslated?.(originalText, translatedText);
+
+      const result = createTranslationResult({
+        direction: pair.direction,
+        sourceLanguage: pair.sourceLanguage,
+        targetLanguage: pair.targetLanguage,
+        mode: 'speech',
+        originalText,
+        translatedText,
+        recordingDurationMs: recording.durationMs,
+      });
+
+      void (async () => {
+        try {
+          const ttsResult = await this.textToSpeechRepository.synthesize(
+            translatedText,
+            pair.targetLanguage,
+          );
+          await this.audioRepository.playAudio(ttsResult.audioUri);
+        } catch (error) {
+          cancelPipelineTiming();
+          logger.error('TTS pipeline failed', error);
+        }
+      })();
+
+      return { result, speechAudioUri: result.speechAudioUri ?? '' };
+    } catch (error) {
+      cancelPipelineTiming();
+      throw error;
+    }
   }
 
   async replaySpeech(audioUri: string): Promise<void> {

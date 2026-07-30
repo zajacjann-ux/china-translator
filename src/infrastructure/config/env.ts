@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { AppError } from '@/shared/errors/AppError';
+import { parseTtsSpeed } from '@/config/tts.config';
 
 export interface EnvConfig {
   openAiApiKey: string;
@@ -7,6 +8,7 @@ export interface EnvConfig {
   translationModel: string;
   ttsModel: string;
   ttsVoice: string;
+  ttsSpeed: number;
 }
 
 export const API_KEY_MISSING_MESSAGE = 'API key is not configured.';
@@ -17,6 +19,11 @@ type ExpoExtra = {
   EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL?: string;
   EXPO_PUBLIC_OPENAI_TTS_MODEL?: string;
   EXPO_PUBLIC_OPENAI_TTS_VOICE?: string;
+  EXPO_PUBLIC_OPENAI_TTS_SPEED?: string;
+};
+
+type LegacyManifest = {
+  extra?: ExpoExtra;
 };
 
 /**
@@ -24,7 +31,20 @@ type ExpoExtra = {
  * EAS Build also embeds values via app.config `extra`, readable through expo-constants.
  */
 function getExtra(): ExpoExtra {
-  return (Constants.expoConfig?.extra ?? {}) as ExpoExtra;
+  const raw =
+    Constants.expoConfig?.extra ??
+    (Constants as typeof Constants & { manifest2?: LegacyManifest }).manifest2?.extra ??
+    (Constants as typeof Constants & { manifest?: LegacyManifest }).manifest?.extra ??
+    {};
+
+  return {
+    EXPO_PUBLIC_OPENAI_API_KEY: raw.EXPO_PUBLIC_OPENAI_API_KEY,
+    EXPO_PUBLIC_OPENAI_STT_MODEL: raw.EXPO_PUBLIC_OPENAI_STT_MODEL,
+    EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL: raw.EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL,
+    EXPO_PUBLIC_OPENAI_TTS_MODEL: raw.EXPO_PUBLIC_OPENAI_TTS_MODEL,
+    EXPO_PUBLIC_OPENAI_TTS_VOICE: raw.EXPO_PUBLIC_OPENAI_TTS_VOICE,
+    EXPO_PUBLIC_OPENAI_TTS_SPEED: raw.EXPO_PUBLIC_OPENAI_TTS_SPEED,
+  };
 }
 
 function pickEnv(staticValue: string | undefined, extraValue: string | undefined): string | undefined {
@@ -49,7 +69,7 @@ function getTranslationModel(): string {
     pickEnv(
       process.env.EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL,
       getExtra().EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL,
-    ) ?? 'gpt-4o-mini'
+    ) ?? 'gpt-4o'
   );
 }
 
@@ -67,6 +87,12 @@ function getTtsVoice(): string {
   );
 }
 
+function getTtsSpeed(): number {
+  return parseTtsSpeed(
+    pickEnv(process.env.EXPO_PUBLIC_OPENAI_TTS_SPEED, getExtra().EXPO_PUBLIC_OPENAI_TTS_SPEED),
+  );
+}
+
 /** Validated environment configuration. Call only when API access is needed. */
 export function getEnvConfig(): EnvConfig {
   const openAiApiKey = getOpenAiApiKey();
@@ -80,6 +106,7 @@ export function getEnvConfig(): EnvConfig {
     translationModel: getTranslationModel(),
     ttsModel: getTtsModel(),
     ttsVoice: getTtsVoice(),
+    ttsSpeed: getTtsSpeed(),
   };
 }
 

@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import { LanguagePairProvider } from '@/presentation/context/LanguagePairContext';
+import { ConversationProvider } from '@/presentation/context/ConversationContext';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
 import { Colors } from '@/presentation/theme';
 
@@ -39,12 +40,15 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <LanguagePairProvider>
-        <ThemeProvider value={navigationTheme}>
-          <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
-            <Stack.Screen name="index" />
-          </Stack>
-          <StatusBar style="light" />
-        </ThemeProvider>
+        <ConversationProvider>
+          <ThemeProvider value={navigationTheme}>
+            <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="camera" />
+            </Stack>
+            <StatusBar style="light" />
+          </ThemeProvider>
+        </ConversationProvider>
       </LanguagePairProvider>
     </GestureHandlerRootView>
   );

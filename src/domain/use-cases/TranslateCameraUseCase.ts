@@ -13,9 +13,14 @@ import {
 } from '../entities/Language';
 import { AppError } from '@/shared/errors/AppError';
 
+export interface TranslateCameraOptions {
+  /** When false, skips TTS synthesis and playback (e.g. chat-only camera translations). */
+  speak?: boolean;
+}
+
 export interface TranslateCameraOutput {
   result: TranslationResult;
-  speechAudioUri: string;
+  speechAudioUri: string | null;
 }
 
 export class TranslateCameraUseCase {
@@ -30,13 +35,18 @@ export class TranslateCameraUseCase {
     imageUri: string,
     sourceLanguage: LanguageCode,
     targetLanguage: LanguageCode,
+    options: TranslateCameraOptions = {},
   ): Promise<TranslateCameraOutput> {
+    const speak = options.speak ?? true;
+
     if (sourceLanguage === targetLanguage) {
       throw new AppError('TRANSLATION_FAILED', 'Source and target language must be different.');
     }
 
     assertLanguageSupportsTranslation(sourceLanguage, targetLanguage);
-    assertLanguageSupportsTts(targetLanguage);
+    if (speak) {
+      assertLanguageSupportsTts(targetLanguage);
+    }
 
     const pair = buildLanguagePair(sourceLanguage, targetLanguage);
 
@@ -54,12 +64,16 @@ export class TranslateCameraUseCase {
       targetLanguage,
     );
 
-    const ttsResult = await this.textToSpeechRepository.synthesize(
-      translatedText,
-      targetLanguage,
-    );
+    let speechAudioUri: string | null = null;
 
-    void this.audioRepository.playAudio(ttsResult.audioUri);
+    if (speak) {
+      const ttsResult = await this.textToSpeechRepository.synthesize(
+        translatedText,
+        targetLanguage,
+      );
+      speechAudioUri = ttsResult.audioUri;
+      void this.audioRepository.playAudio(ttsResult.audioUri);
+    }
 
     const result = createTranslationResult({
       direction: pair.direction,
@@ -68,10 +82,10 @@ export class TranslateCameraUseCase {
       mode: 'camera',
       originalText: ocrResult.text,
       translatedText,
-      speechAudioUri: ttsResult.audioUri,
+      speechAudioUri: speechAudioUri ?? undefined,
     });
 
-    return { result, speechAudioUri: ttsResult.audioUri };
+    return { result, speechAudioUri };
   }
 
   async readAloud(text: string, language: LanguageCode): Promise<string> {
