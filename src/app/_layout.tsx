@@ -45,6 +45,7 @@ export default function RootLayout() {
             <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
               <Stack.Screen name="index" />
               <Stack.Screen name="camera" />
+              <Stack.Screen name="conversations" />
             </Stack>
             <StatusBar style="light" />
           </ThemeProvider>

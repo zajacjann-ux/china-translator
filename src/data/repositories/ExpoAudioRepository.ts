@@ -1,12 +1,13 @@
 import { Platform } from 'react-native';
 import {
   AudioModule,
-  RecordingPresets,
   setAudioModeAsync,
   setIsAudioActiveAsync,
   createAudioPlayer,
   requestRecordingPermissionsAsync,
   type RecordingOptions,
+  IOSOutputFormat,
+  AudioQuality,
 } from 'expo-audio';
 import { File } from 'expo-file-system';
 import type { IAudioRepository, AudioRecording } from '@/domain/repositories/IAudioRepository';
@@ -21,16 +22,30 @@ import { translationDebug } from '@/infrastructure/logging/translationDebug';
 type AudioRecorderInstance = InstanceType<typeof AudioModule.AudioRecorder>;
 type ReleasableNativeObject = { release?: () => void };
 
-/** Whisper-friendly AAC recording in .m4a container. */
+/** 16 kHz mono AAC — optimal for Whisper (native sample rate, smaller uploads). */
+const WHISPER_SAMPLE_RATE = 16000;
+
 const WHISPER_RECORDING_OPTIONS: RecordingOptions = {
-  ...RecordingPresets.HIGH_QUALITY,
   extension: '.m4a',
+  sampleRate: WHISPER_SAMPLE_RATE,
   numberOfChannels: 1,
   bitRate: 128000,
   android: {
     extension: '.m4a',
     outputFormat: 'mpeg4',
     audioEncoder: 'aac',
+  },
+  ios: {
+    extension: '.m4a',
+    outputFormat: IOSOutputFormat.MPEG4AAC,
+    audioQuality: AudioQuality.HIGH,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  web: {
+    mimeType: 'audio/webm',
+    bitsPerSecond: 128000,
   },
 };
 
@@ -131,6 +146,9 @@ export class ExpoAudioRepository implements IAudioRepository {
       logger.info('Recording started', {
         recorderId: this.recorder.id,
         uri: this.recorder.uri,
+        sampleRate: WHISPER_SAMPLE_RATE,
+        channels: 1,
+        bitRate: WHISPER_RECORDING_OPTIONS.bitRate,
       });
 
       return this.recorder.id;
@@ -169,6 +187,7 @@ export class ExpoAudioRepository implements IAudioRepository {
         fileSizeBytes,
         durationMs,
         mimeType,
+        sampleRate: WHISPER_SAMPLE_RATE,
       });
 
       const recording: AudioRecording = {

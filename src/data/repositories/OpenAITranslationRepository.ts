@@ -39,6 +39,7 @@ export class OpenAITranslationRepository implements ITranslationRepository {
 
     try {
       markPipelineTiming('translation_start');
+      const requestStartedAt = Date.now();
 
       const response = await client.chat.completions.create({
         model: env.translationModel,
@@ -55,12 +56,15 @@ export class OpenAITranslationRepository implements ITranslationRepository {
       }
 
       const translated = sanitizeTranslatedText(raw);
+      const latencyMs = Date.now() - requestStartedAt;
 
       translationDebug.translationResult({
-        originalText: text,
+        recognizedSpeech: text,
         translatedText: translated,
         sourceLanguage: source.code,
         targetLanguage: target.code,
+        model: env.translationModel,
+        latencyMs,
       });
 
       markPipelineTiming('translation_end');

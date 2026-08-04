@@ -5,13 +5,20 @@ const PREFIX = '[Translation QA]';
 /** Dev-only logs for translation pipeline quality checks. No UI impact. */
 export const translationDebug = {
   whisperResult(data: {
-    originalText: string;
+    recognizedSpeech: string;
     detectedSourceLanguage: string;
     model: string;
     durationMs?: number;
+    latencyMs: number;
   }): void {
     if (!__DEV__) return;
-    logger.debug(`${PREFIX} Whisper STT`, data);
+    logger.debug(`${PREFIX} Recognized speech`, {
+      text: data.recognizedSpeech,
+      language: data.detectedSourceLanguage,
+      model: data.model,
+      recordingDurationMs: data.durationMs,
+      latencyMs: data.latencyMs,
+    });
   },
 
   translationRequest(data: {
@@ -22,17 +29,32 @@ export const translationDebug = {
     context?: string;
   }): void {
     if (!__DEV__) return;
-    logger.debug(`${PREFIX} Translation request`, data);
+    logger.debug(`${PREFIX} Translation request`, {
+      recognizedSpeech: data.originalText,
+      sourceLanguage: data.sourceLanguage,
+      targetLanguage: data.targetLanguage,
+      model: data.model,
+      context: data.context,
+    });
   },
 
   translationResult(data: {
-    originalText: string;
+    recognizedSpeech: string;
     translatedText: string;
     sourceLanguage: string;
     targetLanguage: string;
+    model: string;
+    latencyMs: number;
   }): void {
     if (!__DEV__) return;
-    logger.debug(`${PREFIX} Translation result`, data);
+    logger.debug(`${PREFIX} Translation result`, {
+      recognizedSpeech: data.recognizedSpeech,
+      translatedText: data.translatedText,
+      sourceLanguage: data.sourceLanguage,
+      targetLanguage: data.targetLanguage,
+      model: data.model,
+      latencyMs: data.latencyMs,
+    });
   },
 
   ttsSynthesis(data: {

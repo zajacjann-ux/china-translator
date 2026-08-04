@@ -27,7 +27,8 @@ function toConversationSpeaker(route: TranslationRoute): ConversationSpeaker {
 }
 
 export function useVoiceTranslation() {
-  const { messages, appendMessage, updateMessage, removeMessage, clearMessages } = useConversation();
+  const { messages, appendMessage, updateMessage, removeMessage, startNewConversation } =
+    useConversation();
   const [state, setState] = useState<VoiceTranslationState>(initialState);
   const activeRouteRef = useRef<TranslationRoute | null>(null);
   const recordingStartedRef = useRef(false);
@@ -177,14 +178,14 @@ export function useVoiceTranslation() {
 
   const clearConversation = useCallback(() => {
     pendingMessageIdRef.current = null;
-    clearMessages();
+    startNewConversation();
     setState((prev) => ({
       ...prev,
       error: null,
       status: 'idle',
       activeRouteId: null,
     }));
-  }, [clearMessages]);
+  }, [startNewConversation]);
 
   const isRecording = state.status === 'recording';
   const isProcessing = state.status === 'processing';

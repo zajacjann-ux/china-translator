@@ -39,7 +39,8 @@ Optional overrides (defaults are also set in `eas.json`):
 | Variable | Default |
 |----------|---------|
 | `EXPO_PUBLIC_OPENAI_STT_MODEL` | `whisper-1` |
-| `EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL` | `gpt-4o` |
+| `EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL` | `gpt-5.5` |
+| `EXPO_PUBLIC_OPENAI_VISION_MODEL` | `gpt-4o` (camera OCR only) |
 | `EXPO_PUBLIC_OPENAI_TTS_MODEL` | `tts-1` |
 | `EXPO_PUBLIC_OPENAI_TTS_SPEED` | `0.85` |
 | `EXPO_PUBLIC_OPENAI_TTS_VOICE` | `alloy` |

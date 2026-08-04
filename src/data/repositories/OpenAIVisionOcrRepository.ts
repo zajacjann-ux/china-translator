@@ -18,7 +18,7 @@ export class OpenAIVisionOcrRepository implements IOcrRepository {
       const hints = options?.languageHints?.join(', ') ?? 'any';
 
       const response = await client.chat.completions.create({
-        model: env.translationModel,
+        model: env.visionModel,
         temperature: 0,
         messages: [
           {

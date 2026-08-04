@@ -6,6 +6,7 @@ import { ErrorBanner } from '@/presentation/components/ui/ErrorBanner';
 import { ConversationHistory } from '@/presentation/components/conversation/ConversationHistory';
 import { ClearConversationButton } from '@/presentation/components/conversation/ClearConversationButton';
 import { CameraHeaderButton } from '@/presentation/components/conversation/CameraHeaderButton';
+import { HistoryMenuButton } from '@/presentation/components/conversation/HistoryMenuButton';
 import { useVoiceTranslation } from '@/presentation/hooks/useVoiceTranslation';
 import { useReplayTranslationAudio } from '@/presentation/hooks/useReplayTranslationAudio';
 import { useLanguagePair } from '@/presentation/context/LanguagePairContext';
@@ -51,7 +52,10 @@ export default function HomeScreen() {
     <SafeScreen padded={false}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <CameraHeaderButton disabled={isRecording || isProcessing} />
+          <View style={styles.headerLeft}>
+            <HistoryMenuButton disabled={isRecording || isProcessing} />
+            <CameraHeaderButton disabled={isRecording || isProcessing} />
+          </View>
           <View style={styles.headerSpacer} />
           <ClearConversationButton
             onClear={clearConversation}
@@ -121,6 +125,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     minHeight: 36,
     marginBottom: Spacing.sm,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   headerSpacer: {
     flex: 1,

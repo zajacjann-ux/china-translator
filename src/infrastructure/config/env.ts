@@ -1,11 +1,17 @@
 import Constants from 'expo-constants';
 import { AppError } from '@/shared/errors/AppError';
 import { parseTtsSpeed } from '@/config/tts.config';
+import {
+  DEFAULT_STT_MODEL,
+  DEFAULT_TRANSLATION_MODEL,
+  DEFAULT_VISION_MODEL,
+} from '@/config/models.config';
 
 export interface EnvConfig {
   openAiApiKey: string;
   sttModel: string;
   translationModel: string;
+  visionModel: string;
   ttsModel: string;
   ttsVoice: string;
   ttsSpeed: number;
@@ -17,6 +23,7 @@ type ExpoExtra = {
   EXPO_PUBLIC_OPENAI_API_KEY?: string;
   EXPO_PUBLIC_OPENAI_STT_MODEL?: string;
   EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL?: string;
+  EXPO_PUBLIC_OPENAI_VISION_MODEL?: string;
   EXPO_PUBLIC_OPENAI_TTS_MODEL?: string;
   EXPO_PUBLIC_OPENAI_TTS_VOICE?: string;
   EXPO_PUBLIC_OPENAI_TTS_SPEED?: string;
@@ -41,6 +48,7 @@ function getExtra(): ExpoExtra {
     EXPO_PUBLIC_OPENAI_API_KEY: raw.EXPO_PUBLIC_OPENAI_API_KEY,
     EXPO_PUBLIC_OPENAI_STT_MODEL: raw.EXPO_PUBLIC_OPENAI_STT_MODEL,
     EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL: raw.EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL,
+    EXPO_PUBLIC_OPENAI_VISION_MODEL: raw.EXPO_PUBLIC_OPENAI_VISION_MODEL,
     EXPO_PUBLIC_OPENAI_TTS_MODEL: raw.EXPO_PUBLIC_OPENAI_TTS_MODEL,
     EXPO_PUBLIC_OPENAI_TTS_VOICE: raw.EXPO_PUBLIC_OPENAI_TTS_VOICE,
     EXPO_PUBLIC_OPENAI_TTS_SPEED: raw.EXPO_PUBLIC_OPENAI_TTS_SPEED,
@@ -60,7 +68,7 @@ export function getOpenAiApiKey(): string | undefined {
 function getSttModel(): string {
   return (
     pickEnv(process.env.EXPO_PUBLIC_OPENAI_STT_MODEL, getExtra().EXPO_PUBLIC_OPENAI_STT_MODEL) ??
-    'whisper-1'
+    DEFAULT_STT_MODEL
   );
 }
 
@@ -69,7 +77,14 @@ function getTranslationModel(): string {
     pickEnv(
       process.env.EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL,
       getExtra().EXPO_PUBLIC_OPENAI_TRANSLATION_MODEL,
-    ) ?? 'gpt-4o'
+    ) ?? DEFAULT_TRANSLATION_MODEL
+  );
+}
+
+function getVisionModel(): string {
+  return (
+    pickEnv(process.env.EXPO_PUBLIC_OPENAI_VISION_MODEL, getExtra().EXPO_PUBLIC_OPENAI_VISION_MODEL) ??
+    DEFAULT_VISION_MODEL
   );
 }
 
@@ -104,6 +119,7 @@ export function getEnvConfig(): EnvConfig {
     openAiApiKey,
     sttModel: getSttModel(),
     translationModel: getTranslationModel(),
+    visionModel: getVisionModel(),
     ttsModel: getTtsModel(),
     ttsVoice: getTtsVoice(),
     ttsSpeed: getTtsSpeed(),

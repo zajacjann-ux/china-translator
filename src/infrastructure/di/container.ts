@@ -6,12 +6,15 @@ import { OpenAIVisionOcrRepository } from '@/data/repositories/OpenAIVisionOcrRe
 import { LocalPhrasebookRepository } from '@/data/repositories/LocalPhrasebookRepository';
 import { ExpoPhraseSpeechService } from '@/data/services/ExpoPhraseSpeechService';
 import { AsyncStorageConversationRepository } from '@/data/storage/ConversationHistoryRepository';
+import { AsyncStorageSavedConversationRepository } from '@/data/storage/SavedConversationRepository';
 import { TranslateTextUseCase } from '@/domain/use-cases/TranslateTextUseCase';
 import { TranslateSpeechUseCase } from '@/domain/use-cases/TranslateSpeechUseCase';
 import { TranslateCameraUseCase } from '@/domain/use-cases/TranslateCameraUseCase';
 import { PhrasebookUseCase } from '@/domain/use-cases/PhrasebookUseCase';
 import { ConversationModeUseCase } from '@/domain/use-cases/ConversationModeUseCase';
 import { ReplayTranslationAudioUseCase } from '@/domain/use-cases/ReplayTranslationAudioUseCase';
+import { SavedConversationUseCase } from '@/domain/use-cases/SavedConversationUseCase';
+import { GenerateConversationTitleUseCase } from '@/domain/use-cases/GenerateConversationTitleUseCase';
 
 class Container {
   readonly audioRepository = new ExpoAudioRepository();
@@ -22,6 +25,7 @@ class Container {
   readonly phrasebookRepository = new LocalPhrasebookRepository();
   readonly phraseSpeechService = new ExpoPhraseSpeechService();
   readonly conversationHistoryRepository = new AsyncStorageConversationRepository();
+  readonly savedConversationRepository = new AsyncStorageSavedConversationRepository();
 
   readonly translateTextUseCase = new TranslateTextUseCase(
     this.translationRepository,
@@ -54,6 +58,12 @@ class Container {
     this.textToSpeechRepository,
     this.audioRepository,
   );
+
+  readonly savedConversationUseCase = new SavedConversationUseCase(
+    this.savedConversationRepository,
+  );
+
+  readonly generateConversationTitleUseCase = new GenerateConversationTitleUseCase();
 }
 
 export const container = new Container();

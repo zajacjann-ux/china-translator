@@ -7,6 +7,7 @@ import type {
 import type { AudioRecording } from '@/domain/repositories/IAudioRepository';
 import type { LanguageCode } from '@/domain/entities/Language';
 import { assertLanguageSupportsStt, getLanguage } from '@/domain/entities/Language';
+import { getWhisperPrompt, WHISPER_TEMPERATURE } from '@/config/stt.config';
 import { getEnvConfig } from '@/infrastructure/config/env';
 import { AppError } from '@/shared/errors/AppError';
 import { logger } from '@/infrastructure/logging/logger';
@@ -38,6 +39,7 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
     assertLanguageSupportsStt(language);
     const env = getEnvConfig();
     const lang = getLanguage(language);
+    const whisperPrompt = getWhisperPrompt(language);
 
     const uploadUri = toUploadUri(audio.uri);
     const file = new File(uploadUri);
@@ -58,11 +60,13 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
       mimeType: WHISPER_MIME_TYPE,
       language: lang.whisperCode,
       model: env.sttModel,
+      promptLength: whisperPrompt.length,
     });
 
     try {
       markPipelineTiming('stt_start');
       markPipelineTiming('audio_upload_start');
+      const requestStartedAt = Date.now();
 
       const result = await file.upload(WHISPER_TRANSCRIPTIONS_URL, {
         uploadType: UploadType.MULTIPART,
@@ -77,10 +81,13 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
           model: env.sttModel,
           language: lang.whisperCode,
           response_format: 'json',
+          temperature: String(WHISPER_TEMPERATURE),
+          prompt: whisperPrompt,
         },
       });
 
       markPipelineTiming('audio_upload_end');
+      const latencyMs = Date.now() - requestStartedAt;
 
       if (result.status < 200 || result.status >= 300) {
         logger.error('Whisper API error response', {
@@ -102,6 +109,7 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
       logger.info('Whisper transcription succeeded', {
         textLength: text.length,
         language: lang.whisperCode,
+        latencyMs,
       });
 
       if (!text) {
@@ -109,10 +117,11 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
       }
 
       translationDebug.whisperResult({
-        originalText: text,
+        recognizedSpeech: text,
         detectedSourceLanguage: lang.whisperCode,
         model: env.sttModel,
         durationMs: audio.durationMs,
+        latencyMs,
       });
 
       markPipelineTiming('stt_end');
