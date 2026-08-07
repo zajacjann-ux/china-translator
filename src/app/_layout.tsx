@@ -46,6 +46,7 @@ export default function RootLayout() {
               <Stack.Screen name="index" />
               <Stack.Screen name="camera" />
               <Stack.Screen name="conversations" />
+              <Stack.Screen name="settings" />
             </Stack>
             <StatusBar style="light" />
           </ThemeProvider>

@@ -1,5 +1,7 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
+type AppVariant = 'development' | 'preview' | 'production';
+
 /** Public env vars embedded into the standalone app via expo-constants `extra`. */
 function getPublicBuildEnv() {
   return {
@@ -10,6 +12,39 @@ function getPublicBuildEnv() {
     EXPO_PUBLIC_OPENAI_TTS_MODEL: process.env.EXPO_PUBLIC_OPENAI_TTS_MODEL,
     EXPO_PUBLIC_OPENAI_TTS_VOICE: process.env.EXPO_PUBLIC_OPENAI_TTS_VOICE,
     EXPO_PUBLIC_OPENAI_TTS_SPEED: process.env.EXPO_PUBLIC_OPENAI_TTS_SPEED,
+  };
+}
+
+function resolveAppVariant(): AppVariant {
+  const variant = process.env.APP_VARIANT ?? process.env.EAS_BUILD_PROFILE;
+  if (variant === 'development') return 'development';
+  if (variant === 'production') return 'production';
+  return 'preview';
+}
+
+function getVariantConfig(variant: AppVariant) {
+  if (variant === 'development') {
+    return {
+      name: 'Rabbitalk Dev',
+      androidPackage: 'com.rabbitalk.app.dev',
+      iosBundleIdentifier: 'com.rabbitalk.app.dev',
+      icon: './assets/images/icon-dev.png',
+      androidAdaptiveIcon: {
+        foregroundImage: './assets/images/android-icon-foreground-dev.png',
+        monochromeImage: './assets/images/android-icon-monochrome-dev.png',
+      },
+    };
+  }
+
+  return {
+    name: 'Rabbitalk',
+    androidPackage: 'com.rabbitalk.app',
+    iosBundleIdentifier: 'com.rabbitalk.app',
+    icon: './assets/images/icon.png',
+    androidAdaptiveIcon: {
+      foregroundImage: './assets/images/android-icon-foreground.png',
+      monochromeImage: './assets/images/android-icon-monochrome.png',
+    },
   };
 }
 
@@ -30,15 +65,18 @@ function assertEasBuildEnv(profile: string | undefined, env: ReturnType<typeof g
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const publicEnv = getPublicBuildEnv();
+  const variant = resolveAppVariant();
+  const variantConfig = getVariantConfig(variant);
+
   assertEasBuildEnv(process.env.EAS_BUILD_PROFILE, publicEnv);
 
   return {
     ...config,
-    name: 'Rabbitalk',
+    name: variantConfig.name,
     slug: 'rabbitalk',
     version: '1.0.0',
     orientation: 'portrait',
-    icon: './assets/images/icon.png',
+    icon: variantConfig.icon,
     scheme: 'rabbitalk',
     userInterfaceStyle: 'dark',
     newArchEnabled: true,
@@ -50,7 +88,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ios: {
       supportsTablet: false,
       requireFullScreen: true,
-      bundleIdentifier: 'com.rabbitalk.app',
+      bundleIdentifier: variantConfig.iosBundleIdentifier,
       infoPlist: {
         NSMicrophoneUsageDescription:
           'Rabbitalk needs microphone access for speech translation while you travel.',
@@ -59,12 +97,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
     },
     android: {
-      package: 'com.rabbitalk.app',
+      package: variantConfig.androidPackage,
       versionCode: 1,
       adaptiveIcon: {
-        foregroundImage: './assets/images/android-icon-foreground.png',
+        foregroundImage: variantConfig.androidAdaptiveIcon.foregroundImage,
         backgroundColor: '#0F172A',
-        monochromeImage: './assets/images/android-icon-monochrome.png',
+        monochromeImage: variantConfig.androidAdaptiveIcon.monochromeImage,
       },
       permissions: ['android.permission.RECORD_AUDIO', 'android.permission.CAMERA'],
     },
@@ -91,6 +129,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           recordAudioAndroid: false,
         },
       ],
+      [
+        'expo-image-picker',
+        {
+          photosPermission:
+            'Allow Rabbitalk to access your photos to translate text from images.',
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,
@@ -100,6 +145,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       eas: {
         projectId: '030ec575-4d75-4d73-9660-dd747c47cbd7',
       },
+      appVariant: variant,
       ...publicEnv,
     },
   };

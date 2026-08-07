@@ -1,14 +1,12 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeScreen } from '@/presentation/components/layout/SafeScreen';
-import { LanguageSelector } from '@/presentation/components/language/LanguageSelector';
 import { TranslationButton } from '@/presentation/components/ui/TranslationButton';
 import { ErrorBanner } from '@/presentation/components/ui/ErrorBanner';
 import { ConversationHistory } from '@/presentation/components/conversation/ConversationHistory';
-import { ClearConversationButton } from '@/presentation/components/conversation/ClearConversationButton';
-import { CameraHeaderButton } from '@/presentation/components/conversation/CameraHeaderButton';
-import { HistoryMenuButton } from '@/presentation/components/conversation/HistoryMenuButton';
+import { TopNavigationBar } from '@/presentation/components/navigation/TopNavigationBar';
 import { useVoiceTranslation } from '@/presentation/hooks/useVoiceTranslation';
 import { useReplayTranslationAudio } from '@/presentation/hooks/useReplayTranslationAudio';
+import { useImageAttachment } from '@/presentation/hooks/useImageAttachment';
 import { useLanguagePair } from '@/presentation/context/LanguagePairContext';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
 import { Colors, Spacing } from '@/presentation/theme';
@@ -35,6 +33,12 @@ export default function HomeScreen() {
     replayError,
     clearReplayError,
   } = useReplayTranslationAudio(userLanguage, partnerLanguage);
+  const {
+    pickAndTranslate,
+    isProcessing: isAttachmentProcessing,
+    error: attachmentError,
+    clearError: clearAttachmentError,
+  } = useImageAttachment();
 
   if (!isReady) {
     return (
@@ -47,23 +51,18 @@ export default function HomeScreen() {
   }
 
   const [userRoute, partnerRoute] = speechRoutes;
+  const navDisabled = isRecording || isProcessing || isAttachmentProcessing;
 
   return (
     <SafeScreen padded={false}>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <HistoryMenuButton disabled={isRecording || isProcessing} />
-            <CameraHeaderButton disabled={isRecording || isProcessing} />
-          </View>
-          <View style={styles.headerSpacer} />
-          <ClearConversationButton
-            onClear={clearConversation}
-            disabled={isRecording || isProcessing || messages.length === 0}
-          />
-        </View>
-
-        <LanguageSelector />
+        <TopNavigationBar
+          disabled={navDisabled}
+          attachmentProcessing={isAttachmentProcessing}
+          onPickAttachment={pickAndTranslate}
+          onClearConversation={clearConversation}
+          canClearConversation={messages.length > 0}
+        />
 
         <ConversationHistory
           messages={messages}
@@ -71,7 +70,7 @@ export default function HomeScreen() {
           partnerFlag={partnerLang.flag}
           onReplayMessage={replayMessage}
           replayingMessageId={replayingMessageId}
-          replayDisabled={isRecording || isProcessing}
+          replayDisabled={navDisabled}
         />
 
         <View style={styles.bottomBar}>
@@ -80,7 +79,7 @@ export default function HomeScreen() {
               route={userRoute}
               isRecording={isRecording && activeRouteId === userRoute.id}
               isProcessing={isProcessing && activeRouteId === userRoute.id}
-              disabled={isProcessing || (isRecording && activeRouteId !== userRoute.id)}
+              disabled={navDisabled || (isRecording && activeRouteId !== userRoute.id)}
               onPressIn={() => onPressIn(userRoute)}
               onPressOut={onPressOut}
             />
@@ -89,7 +88,7 @@ export default function HomeScreen() {
               route={partnerRoute}
               isRecording={isRecording && activeRouteId === partnerRoute.id}
               isProcessing={isProcessing && activeRouteId === partnerRoute.id}
-              disabled={isProcessing || (isRecording && activeRouteId !== partnerRoute.id)}
+              disabled={navDisabled || (isRecording && activeRouteId !== partnerRoute.id)}
               onPressIn={() => onPressIn(partnerRoute)}
               onPressOut={onPressOut}
             />
@@ -99,6 +98,12 @@ export default function HomeScreen() {
         {error && (
           <View style={styles.footer}>
             <ErrorBanner message={error} onDismiss={clearError} />
+          </View>
+        )}
+
+        {attachmentError && (
+          <View style={styles.footer}>
+            <ErrorBanner message={attachmentError} onDismiss={clearAttachmentError} />
           </View>
         )}
 
@@ -118,21 +123,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.md,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 36,
-    marginBottom: Spacing.sm,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing.sm,
-  },
-  headerSpacer: {
-    flex: 1,
   },
   bottomBar: {
     paddingTop: Spacing.md,

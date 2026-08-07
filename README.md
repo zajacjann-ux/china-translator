@@ -4,11 +4,13 @@ Voice-first AI travel translator.
 
 ## Build profiles
 
-| Profile | Use case | Output |
-|---------|----------|--------|
-| Local dev | Quick testing with **Expo Go** | Scan QR from `npm start` |
-| `preview` | Internal testing on device | Standalone signed APK |
-| `production` | Distribution | Standalone signed APK |
+| Profile | App name | Android package | Use case | Output |
+|---------|----------|-----------------|----------|--------|
+| `development` | Rabbitalk Dev | `com.rabbitalk.app.dev` | Internal dev testing | Standalone signed APK (DEV icon) |
+| `preview` | Rabbitalk | `com.rabbitalk.app` | Internal testing on device | Standalone signed APK |
+| `production` | Rabbitalk | `com.rabbitalk.app` | Distribution | Standalone signed APK |
+
+Development and Preview builds can be installed side-by-side on the same Android device because they use different package IDs.
 
 Preview and production builds bundle JavaScript into the APK and launch **Rabbitalk directly** — no USB cable, no Expo dev server, and no development client.
 
@@ -53,7 +55,10 @@ At runtime the app reads env vars from:
 ## Build standalone APK
 
 ```bash
-# Internal testing (recommended first)
+# Development (Rabbitalk Dev — com.rabbitalk.app.dev)
+npm run build:dev:android
+
+# Preview (Rabbitalk — com.rabbitalk.app)
 npm run build:preview:android
 
 # Production
