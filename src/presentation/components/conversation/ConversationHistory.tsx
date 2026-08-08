@@ -13,6 +13,7 @@ interface ConversationHistoryProps {
   onReplayMessage?: (message: ConversationMessage) => void;
   replayingMessageId?: string | null;
   replayDisabled?: boolean;
+  contentPaddingBottom?: number;
 }
 
 export function ConversationHistory({
@@ -22,6 +23,7 @@ export function ConversationHistory({
   onReplayMessage,
   replayingMessageId = null,
   replayDisabled = false,
+  contentPaddingBottom = 0,
 }: ConversationHistoryProps) {
   const listRef = useRef<FlatList<ConversationMessage>>(null);
 
@@ -67,7 +69,7 @@ export function ConversationHistory({
       keyExtractor={keyExtractor}
       renderItem={renderItem}
       style={styles.list}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: Spacing.sm + contentPaddingBottom }]}
       ItemSeparatorComponent={Separator}
       showsVerticalScrollIndicator
       onContentSizeChange={() => scrollToBottom(messages.length > 1)}

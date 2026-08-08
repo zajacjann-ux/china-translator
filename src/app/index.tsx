@@ -1,6 +1,9 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeScreen } from '@/presentation/components/layout/SafeScreen';
-import { TranslationButton } from '@/presentation/components/ui/TranslationButton';
+import {
+  TranslationButton,
+  VOICE_CONTROLS_BOTTOM_INSET,
+} from '@/presentation/components/ui/TranslationButton';
 import { ErrorBanner } from '@/presentation/components/ui/ErrorBanner';
 import { ConversationHistory } from '@/presentation/components/conversation/ConversationHistory';
 import { TopNavigationBar } from '@/presentation/components/navigation/TopNavigationBar';
@@ -68,34 +71,42 @@ export default function HomeScreen() {
           canClearConversation={messages.length > 0}
         />
 
-        <ConversationHistory
-          messages={messages}
-          userLanguage={userLanguage}
-          partnerLanguage={partnerLanguage}
-          onReplayMessage={replayMessage}
-          replayingMessageId={replayingMessageId}
-          replayDisabled={navDisabled}
-        />
+        <View style={styles.conversationStack}>
+          <ConversationHistory
+            messages={messages}
+            userLanguage={userLanguage}
+            partnerLanguage={partnerLanguage}
+            onReplayMessage={replayMessage}
+            replayingMessageId={replayingMessageId}
+            replayDisabled={navDisabled}
+            contentPaddingBottom={VOICE_CONTROLS_BOTTOM_INSET}
+          />
 
-        <View style={styles.bottomBar}>
-          <View style={styles.buttonsRow}>
-            <TranslationButton
-              route={userRoute}
-              isRecording={isRecording && activeRouteId === userRoute.id}
-              isProcessing={isProcessing && activeRouteId === userRoute.id}
-              disabled={isRouteBlocked(userRoute.id)}
-              onPressIn={() => onPressIn(userRoute)}
-              onPressOut={onPressOut}
-            />
+          <View
+            style={[
+              styles.bottomBar,
+              { backgroundColor: scheme === 'dark' ? 'rgba(15, 23, 42, 0.5)' : 'rgba(248, 250, 252, 0.5)' },
+            ]}
+          >
+            <View style={styles.buttonsRow}>
+              <TranslationButton
+                route={userRoute}
+                isRecording={isRecording && activeRouteId === userRoute.id}
+                isProcessing={isProcessing && activeRouteId === userRoute.id}
+                disabled={isRouteBlocked(userRoute.id)}
+                onPressIn={() => onPressIn(userRoute)}
+                onPressOut={onPressOut}
+              />
 
-            <TranslationButton
-              route={partnerRoute}
-              isRecording={isRecording && activeRouteId === partnerRoute.id}
-              isProcessing={isProcessing && activeRouteId === partnerRoute.id}
-              disabled={isRouteBlocked(partnerRoute.id)}
-              onPressIn={() => onPressIn(partnerRoute)}
-              onPressOut={onPressOut}
-            />
+              <TranslationButton
+                route={partnerRoute}
+                isRecording={isRecording && activeRouteId === partnerRoute.id}
+                isProcessing={isProcessing && activeRouteId === partnerRoute.id}
+                disabled={isRouteBlocked(partnerRoute.id)}
+                onPressIn={() => onPressIn(partnerRoute)}
+                onPressOut={onPressOut}
+              />
+            </View>
           </View>
         </View>
 
@@ -126,12 +137,21 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing.md,
     gap: Spacing.sm,
   },
+  conversationStack: {
+    flex: 1,
+    position: 'relative',
+  },
   bottomBar: {
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.xs,
+    position: 'absolute',
+    left: -Spacing.lg,
+    right: -Spacing.lg,
+    bottom: 0,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    zIndex: 2,
   },
   buttonsRow: {
     flexDirection: 'row',

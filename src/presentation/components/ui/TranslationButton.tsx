@@ -17,6 +17,16 @@ import type { TranslationRoute } from '@/domain/entities/TranslationRoute';
 /** Premium 3D voice button diameter (110–130px range). */
 export const VOICE_BUTTON_3D_SIZE = 138;
 
+/** Bottom inset for conversation list so messages scroll above the voice controls overlay. */
+export const VOICE_CONTROLS_BOTTOM_INSET =
+  VOICE_BUTTON_3D_SIZE + 36 + Spacing.sm + 21 + Spacing.md + Spacing.md;
+
+/** Matches ConversationBubble speaker colors for voice button borders. */
+const VOICE_BUTTON_BORDER_COLORS = {
+  user: '#123F35',
+  partner: '#102A4C',
+} as const;
+
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface TranslationButtonProps {
@@ -29,9 +39,7 @@ interface TranslationButtonProps {
 }
 
 interface ButtonTheme {
-  face: string;
-  facePressed: string;
-  rim: string;
+  border: string;
   shadow: string;
   glow: string;
   groundShadow: string;
@@ -58,20 +66,16 @@ export function TranslationButton({
 
   const theme: ButtonTheme = isUser
     ? {
-        face: palette.mic,
-        facePressed: palette.micPressed,
-        rim: '#4ADE80',
-        shadow: '#15803D',
-        glow: palette.micGlow,
-        groundShadow: 'rgba(21, 128, 61, 0.45)',
+        border: VOICE_BUTTON_BORDER_COLORS.user,
+        shadow: '#0B2A23',
+        glow: 'rgba(18, 63, 53, 0.55)',
+        groundShadow: 'rgba(11, 42, 35, 0.42)',
       }
     : {
-        face: palette.primary,
-        facePressed: palette.primaryPressed,
-        rim: '#93C5FD',
-        shadow: '#1D4ED8',
-        glow: 'rgba(59, 130, 246, 0.45)',
-        groundShadow: 'rgba(29, 78, 216, 0.42)',
+        border: VOICE_BUTTON_BORDER_COLORS.partner,
+        shadow: '#081A30',
+        glow: 'rgba(16, 42, 76, 0.55)',
+        groundShadow: 'rgba(8, 26, 48, 0.42)',
       };
 
   useEffect(() => {
@@ -205,18 +209,33 @@ export function TranslationButton({
                 width: buttonSize,
                 height: buttonSize,
                 borderRadius: buttonSize / 2,
-                backgroundColor: isRecording ? theme.rim : theme.face,
-                borderColor: theme.rim,
+                borderColor: theme.border,
+                borderWidth: isRecording ? 4 : 3.5,
               },
             ]}
           >
-            <View style={styles.topSheen} pointerEvents="none" />
-            <View style={styles.innerRim} pointerEvents="none" />
+            <ThemedText
+              style={[
+                styles.flagFill,
+                {
+                  fontSize: buttonSize * 1.18,
+                  lineHeight: buttonSize,
+                  width: buttonSize,
+                  height: buttonSize,
+                },
+              ]}
+            >
+              {route.buttonFlag}
+            </ThemedText>
 
-            {isProcessing ? (
-              <ActivityIndicator size="small" color={palette.primaryText} />
-            ) : (
-              <ThemedText style={styles.flag}>{route.buttonFlag}</ThemedText>
+            {isRecording && (
+              <View style={[styles.recordingVeil, { borderRadius: buttonSize / 2 }]} pointerEvents="none" />
+            )}
+
+            {isProcessing && (
+              <View style={[styles.processingOverlay, { borderRadius: buttonSize / 2 }]}>
+                <ActivityIndicator size="small" color={palette.primaryText} />
+              </View>
             )}
           </View>
         </AnimatedPressable>
@@ -263,34 +282,22 @@ const styles = StyleSheet.create({
   buttonFace: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
     overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
   },
-  topSheen: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '42%',
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
-    borderTopLeftRadius: 999,
-    borderTopRightRadius: 999,
+  flagFill: {
+    textAlign: 'center',
+    includeFontPadding: false,
   },
-  innerRim: {
-    position: 'absolute',
-    bottom: 6,
-    left: 10,
-    right: 10,
-    height: 14,
-    borderRadius: 999,
-    backgroundColor: 'rgba(0, 0, 0, 0.12)',
+  recordingVeil: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
   },
-  flag: {
-    fontSize: 53,
-    lineHeight: 60,
-    textShadowColor: 'rgba(0, 0, 0, 0.18)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 3,
+  processingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
   },
   label: {
     ...Typography.button,
