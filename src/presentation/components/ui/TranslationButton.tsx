@@ -9,9 +9,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
+import { VoiceButtonFlag } from '@/presentation/components/ui/flags';
 import { ThemedText } from '@/presentation/components/ui/ThemedText';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
 import { Colors, Spacing, Typography } from '@/presentation/theme';
+import { getLanguagePairFromDirection } from '@/domain/entities/TranslationDirection';
 import type { TranslationRoute } from '@/domain/entities/TranslationRoute';
 
 /** Premium 3D voice button diameter (110–130px range). */
@@ -26,6 +28,9 @@ const VOICE_BUTTON_BORDER_COLORS = {
   user: '#123F35',
   partner: '#102A4C',
 } as const;
+
+const VOICE_BUTTON_BORDER_WIDTH = 7;
+const VOICE_BUTTON_BORDER_WIDTH_RECORDING = 8;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -57,6 +62,9 @@ export function TranslationButton({
   const palette = Colors[scheme];
   const isUser = route.speaker === 'user';
   const buttonSize = VOICE_BUTTON_3D_SIZE;
+  const borderWidth = isRecording ? VOICE_BUTTON_BORDER_WIDTH_RECORDING : VOICE_BUTTON_BORDER_WIDTH;
+  const flagSize = buttonSize - borderWidth * 2;
+  const { sourceLanguage } = getLanguagePairFromDirection(route.direction);
 
   const pulseScale = useSharedValue(1);
   const pressScale = useSharedValue(1);
@@ -122,7 +130,7 @@ export function TranslationButton({
 
   const handlePressIn = () => {
     if (disabled || isProcessing) return;
-    pressScale.value = withTiming(0.94, { duration: 90 });
+    pressScale.value = withTiming(0.95, { duration: 90 });
     glowOpacity.value = withTiming(0.85, { duration: 120 });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onPressIn?.();
@@ -210,23 +218,12 @@ export function TranslationButton({
                 height: buttonSize,
                 borderRadius: buttonSize / 2,
                 borderColor: theme.border,
-                borderWidth: isRecording ? 4 : 3.5,
+                backgroundColor: theme.border,
+                borderWidth,
               },
             ]}
           >
-            <ThemedText
-              style={[
-                styles.flagFill,
-                {
-                  fontSize: buttonSize * 1.18,
-                  lineHeight: buttonSize,
-                  width: buttonSize,
-                  height: buttonSize,
-                },
-              ]}
-            >
-              {route.buttonFlag}
-            </ThemedText>
+            <VoiceButtonFlag languageCode={sourceLanguage} size={flagSize} />
 
             {isRecording && (
               <View style={[styles.recordingVeil, { borderRadius: buttonSize / 2 }]} pointerEvents="none" />
@@ -274,27 +271,22 @@ const styles = StyleSheet.create({
   buttonShell: {
     alignItems: 'center',
     justifyContent: 'center',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.38,
-    shadowRadius: 16,
-    elevation: 14,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.32,
+    shadowRadius: 14,
+    elevation: 12,
   },
   buttonFace: {
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
-  },
-  flagFill: {
-    textAlign: 'center',
-    includeFontPadding: false,
   },
   recordingVeil: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(255, 255, 255, 0.14)',
   },
   processingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.35)',

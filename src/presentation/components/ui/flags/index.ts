@@ -1,0 +1,1 @@
+export { VoiceButtonFlag } from './VoiceButtonFlag';
