@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import { File, UploadType } from 'expo-file-system';
 import type {
   ISpeechToTextRepository,
+  SpeechToTextOptions,
   SpeechToTextResult,
 } from '@/domain/repositories/ISpeechToTextRepository';
 import type { AudioRecording } from '@/domain/repositories/IAudioRepository';
@@ -15,7 +16,11 @@ import { translationDebug } from '@/infrastructure/logging/translationDebug';
 import { markPipelineTiming } from '@/infrastructure/logging/translationTiming';
 
 const WHISPER_TRANSCRIPTIONS_URL = 'https://api.openai.com/v1/audio/transcriptions';
-const WHISPER_MIME_TYPE = 'audio/m4a';
+
+function resolveWhisperMimeType(recording: AudioRecording): string {
+  if (recording.mimeType.includes('wav')) return 'audio/wav';
+  return 'audio/m4a';
+}
 
 function toUploadUri(uri: string): string {
   if (uri.startsWith('file://')) return uri;
@@ -35,11 +40,16 @@ function formatWhisperError(status: number, body: string): string {
 }
 
 export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
-  async transcribe(audio: AudioRecording, language: LanguageCode): Promise<SpeechToTextResult> {
+  async transcribe(
+    audio: AudioRecording,
+    language: LanguageCode,
+    options: SpeechToTextOptions = {},
+  ): Promise<SpeechToTextResult> {
     assertLanguageSupportsStt(language);
     const env = getEnvConfig();
     const lang = getLanguage(language);
-    const whisperPrompt = getWhisperPrompt(language);
+    const whisperPrompt = options.usePrompt === false ? undefined : getWhisperPrompt(language);
+    const mimeType = resolveWhisperMimeType(audio);
 
     const uploadUri = toUploadUri(audio.uri);
     const file = new File(uploadUri);
@@ -57,10 +67,10 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
       uri: uploadUri,
       sizeBytes,
       durationMs: audio.durationMs,
-      mimeType: WHISPER_MIME_TYPE,
+      mimeType: mimeType,
       language: lang.whisperCode,
       model: env.sttModel,
-      promptLength: whisperPrompt.length,
+      promptLength: whisperPrompt?.length ?? 0,
     });
 
     try {
@@ -71,7 +81,7 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
       const result = await file.upload(WHISPER_TRANSCRIPTIONS_URL, {
         uploadType: UploadType.MULTIPART,
         fieldName: 'file',
-        mimeType: WHISPER_MIME_TYPE,
+        mimeType,
         httpMethod: 'POST',
         headers: {
           Authorization: `Bearer ${env.openAiApiKey}`,
@@ -82,7 +92,7 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
           language: lang.whisperCode,
           response_format: 'json',
           temperature: String(WHISPER_TEMPERATURE),
-          prompt: whisperPrompt,
+          ...(whisperPrompt ? { prompt: whisperPrompt } : {}),
         },
       });
 
@@ -113,6 +123,10 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
       });
 
       if (!text) {
+        if (options.allowEmpty) {
+          markPipelineTiming('stt_end');
+          return { text: '', language: lang.whisperCode };
+        }
         throw new AppError('EMPTY_TRANSCRIPTION', 'No speech detected. Please try again.');
       }
 

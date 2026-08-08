@@ -45,7 +45,11 @@ export default function CameraScreen() {
         { speak: false },
       );
 
-      addCameraMessage(output.result.originalText, output.result.translatedText);
+      addCameraMessage(output.result.originalText, output.result.translatedText, {
+        sourceLanguage: partnerLanguage,
+        targetLanguage: userLanguage,
+        audioUri: output.speechAudioUri ?? undefined,
+      });
       router.back();
     } catch (err) {
       setError(getErrorMessage(err));

@@ -1,3 +1,10 @@
+export type RecordingProfile = 'accurate' | 'fast';
+
+export interface StartRecordingOptions {
+  profile?: RecordingProfile;
+  onPcmChunk?: (chunk: Int16Array, sampleRate: number) => void;
+}
+
 export interface AudioRecording {
   uri: string;
   durationMs: number;
@@ -10,7 +17,7 @@ export interface IAudioRepository {
   requestPermission(): Promise<boolean>;
 
   /** Start recording audio. Returns session id for tracking. */
-  startRecording(): Promise<string>;
+  startRecording(options?: StartRecordingOptions): Promise<string>;
 
   /** Stop recording and return the captured audio file metadata */
   stopRecording(): Promise<AudioRecording>;

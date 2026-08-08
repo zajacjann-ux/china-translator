@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { HeaderIconButton } from '@/presentation/components/navigation/HeaderIconButton';
 import { AppMenuSheet } from '@/presentation/components/navigation/AppMenuSheet';
 import { LanguageSelectorSheet } from '@/presentation/components/navigation/LanguageSelectorSheet';
+import { VoiceTranslationModeSelector } from '@/presentation/components/settings/VoiceTranslationModeSelector';
 import { Spacing } from '@/presentation/theme';
 
 interface TopNavigationBarProps {
@@ -40,39 +41,43 @@ export function TopNavigationBar({
 
   return (
     <>
-      <View style={styles.bar}>
-        <View style={styles.iconGroup}>
+      <View style={styles.wrapper}>
+        <View style={styles.bar}>
+          <View style={styles.iconGroup}>
+            <HeaderIconButton
+              variant="emoji"
+              icon="☰"
+              label="Menu"
+              onPress={() => setMenuVisible(true)}
+              disabled={disabled}
+            />
+            <HeaderIconButton
+              variant="emoji"
+              icon="📷"
+              label="Camera"
+              onPress={openCamera}
+              disabled={disabled}
+            />
+            <HeaderIconButton
+              variant="emoji"
+              icon="📎"
+              label="Gallery"
+              onPress={onPickAttachment}
+              disabled={disabled}
+              loading={attachmentProcessing}
+            />
+          </View>
+
           <HeaderIconButton
-            variant="emoji"
-            icon="☰"
-            label="Menu"
-            onPress={() => setMenuVisible(true)}
+            variant="material"
+            icon="translate"
+            label="Translate languages"
+            onPress={openLanguages}
             disabled={disabled}
-          />
-          <HeaderIconButton
-            variant="emoji"
-            icon="📷"
-            label="Camera"
-            onPress={openCamera}
-            disabled={disabled}
-          />
-          <HeaderIconButton
-            variant="emoji"
-            icon="📎"
-            label="Gallery"
-            onPress={onPickAttachment}
-            disabled={disabled}
-            loading={attachmentProcessing}
           />
         </View>
 
-        <HeaderIconButton
-          variant="material"
-          icon="translate"
-          label="Translate languages"
-          onPress={openLanguages}
-          disabled={disabled}
-        />
+        <VoiceTranslationModeSelector variant="inline" disabled={disabled} />
       </View>
 
       <AppMenuSheet
@@ -91,11 +96,14 @@ export function TopNavigationBar({
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    gap: Spacing.sm,
+  },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 40,
+    minHeight: 48,
   },
   iconGroup: {
     flexDirection: 'row',

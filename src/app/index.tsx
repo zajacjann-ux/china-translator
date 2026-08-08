@@ -53,6 +53,10 @@ export default function HomeScreen() {
   const [userRoute, partnerRoute] = speechRoutes;
   const navDisabled = isRecording || isProcessing || isAttachmentProcessing;
 
+  const isRouteBlocked = (routeId: string) =>
+    isAttachmentProcessing ||
+    ((isRecording || isProcessing) && activeRouteId !== null && activeRouteId !== routeId);
+
   return (
     <SafeScreen padded={false}>
       <View style={styles.container}>
@@ -66,8 +70,8 @@ export default function HomeScreen() {
 
         <ConversationHistory
           messages={messages}
-          userFlag={userLang.flag}
-          partnerFlag={partnerLang.flag}
+          userLanguage={userLanguage}
+          partnerLanguage={partnerLanguage}
           onReplayMessage={replayMessage}
           replayingMessageId={replayingMessageId}
           replayDisabled={navDisabled}
@@ -79,7 +83,7 @@ export default function HomeScreen() {
               route={userRoute}
               isRecording={isRecording && activeRouteId === userRoute.id}
               isProcessing={isProcessing && activeRouteId === userRoute.id}
-              disabled={navDisabled || (isRecording && activeRouteId !== userRoute.id)}
+              disabled={isRouteBlocked(userRoute.id)}
               onPressIn={() => onPressIn(userRoute)}
               onPressOut={onPressOut}
             />
@@ -88,7 +92,7 @@ export default function HomeScreen() {
               route={partnerRoute}
               isRecording={isRecording && activeRouteId === partnerRoute.id}
               isProcessing={isProcessing && activeRouteId === partnerRoute.id}
-              disabled={navDisabled || (isRecording && activeRouteId !== partnerRoute.id)}
+              disabled={isRouteBlocked(partnerRoute.id)}
               onPressIn={() => onPressIn(partnerRoute)}
               onPressOut={onPressOut}
             />

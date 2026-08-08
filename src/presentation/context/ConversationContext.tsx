@@ -29,7 +29,15 @@ interface ConversationContextValue {
   updateMessage: (id: string, patch: Partial<ConversationMessage>) => void;
   removeMessage: (id: string) => void;
   clearMessages: () => void;
-  addCameraMessage: (originalText: string, translatedText: string) => void;
+  addCameraMessage: (
+    originalText: string,
+    translatedText: string,
+    meta?: {
+      sourceLanguage?: ConversationMessage['sourceLanguage'];
+      targetLanguage?: ConversationMessage['targetLanguage'];
+      audioUri?: string;
+    },
+  ) => void;
   startNewConversation: () => void;
   loadConversation: (conversation: SavedConversation) => void;
 }
@@ -150,6 +158,9 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateMessage = useCallback((id: string, patch: Partial<ConversationMessage>) => {
+    if (__DEV__ && patch.originalText !== undefined) {
+      console.log('[FAST DEBUG] ConversationContext.updateMessage', { id, patch });
+    }
     setMessages((prev) =>
       prev.map((message) => (message.id === id ? { ...message, ...patch } : message)),
     );
@@ -163,15 +174,29 @@ export function ConversationProvider({ children }: { children: ReactNode }) {
     setMessages([]);
   }, []);
 
-  const addCameraMessage = useCallback((originalText: string, translatedText: string) => {
-    const message = createConversationMessage({
-      speaker: 'partner',
-      originalText,
-      translatedText,
-      source: 'camera',
-    });
-    setMessages((prev) => [...prev, message]);
-  }, []);
+  const addCameraMessage = useCallback(
+    (
+      originalText: string,
+      translatedText: string,
+      meta?: {
+        sourceLanguage?: ConversationMessage['sourceLanguage'];
+        targetLanguage?: ConversationMessage['targetLanguage'];
+        audioUri?: string;
+      },
+    ) => {
+      const message = createConversationMessage({
+        speaker: 'partner',
+        originalText,
+        translatedText,
+        source: 'camera',
+        sourceLanguage: meta?.sourceLanguage,
+        targetLanguage: meta?.targetLanguage,
+        audioUri: meta?.audioUri,
+      });
+      setMessages((prev) => [...prev, message]);
+    },
+    [],
+  );
 
   const startNewConversation = useCallback(() => {
     void persistNow();

@@ -1,18 +1,11 @@
 import { useCallback, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import type { ConversationMessage } from '@/domain/entities/ConversationMessage';
+import { resolveMessageLanguages } from '@/domain/entities/ConversationMessage';
 import type { LanguageCode } from '@/domain/entities/Language';
 import { container } from '@/infrastructure/di/container';
 import { getErrorMessage } from '@/shared/errors/AppError';
 import { logger } from '@/infrastructure/logging/logger';
-
-function getTargetLanguageForMessage(
-  speaker: ConversationMessage['speaker'],
-  userLanguage: LanguageCode,
-  partnerLanguage: LanguageCode,
-): LanguageCode {
-  return speaker === 'me' ? partnerLanguage : userLanguage;
-}
 
 export function useReplayTranslationAudio(
   userLanguage: LanguageCode,
@@ -29,17 +22,18 @@ export function useReplayTranslationAudio(
       setError(null);
       setReplayingMessageId(message.id);
 
-      const targetLanguage = getTargetLanguageForMessage(
-        message.speaker,
+      const { targetLanguage } = resolveMessageLanguages(
+        message,
         userLanguage,
         partnerLanguage,
       );
 
       try {
-        await container.replayTranslationAudioUseCase.execute(
-          message.translatedText,
+        await container.replayTranslationAudioUseCase.execute({
+          text: message.translatedText,
           targetLanguage,
-        );
+          audioUri: message.audioUri,
+        });
       } catch (err) {
         logger.error('Replay translation audio failed', err);
         setError(getErrorMessage(err));

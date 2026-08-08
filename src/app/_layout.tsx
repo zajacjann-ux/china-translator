@@ -3,8 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
-import { LanguagePairProvider } from '@/presentation/context/LanguagePairContext';
-import { ConversationProvider } from '@/presentation/context/ConversationContext';
+import { AppProviders } from '@/presentation/context/AppProviders';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
 import { Colors } from '@/presentation/theme';
 
@@ -39,19 +38,17 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={styles.root}>
-      <LanguagePairProvider>
-        <ConversationProvider>
-          <ThemeProvider value={navigationTheme}>
-            <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="camera" />
-              <Stack.Screen name="conversations" />
-              <Stack.Screen name="settings" />
-            </Stack>
-            <StatusBar style="light" />
-          </ThemeProvider>
-        </ConversationProvider>
-      </LanguagePairProvider>
+      <AppProviders>
+        <ThemeProvider value={navigationTheme}>
+          <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="camera" />
+            <Stack.Screen name="conversations" />
+            <Stack.Screen name="settings" />
+          </Stack>
+          <StatusBar style="light" />
+        </ThemeProvider>
+      </AppProviders>
     </GestureHandlerRootView>
   );
 }

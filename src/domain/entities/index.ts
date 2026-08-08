@@ -27,7 +27,7 @@ export type { PhrasebookCategoryId, PhrasebookCategory, Phrase } from './Phraseb
 export { PHRASEBOOK_CATEGORIES } from './Phrasebook';
 export type { OcrResult, OcrOptions } from './OcrResult';
 export type { ConversationMessage, ConversationSpeaker } from './ConversationMessage';
-export { createConversationMessage } from './ConversationMessage';
+export { createConversationMessage, resolveMessageLanguages } from './ConversationMessage';
 
 /** Re-export config for documentation and tooling */
 export { LANGUAGE_CONFIG } from '@/config/languages.config';

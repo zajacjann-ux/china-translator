@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import type { RecordingStatus } from '@/domain/entities/RecordingSession';
 import type { TranslationRoute } from '@/domain/entities/TranslationRoute';
 import type { ConversationSpeaker } from '@/domain/entities/ConversationMessage';
 import { createConversationMessage } from '@/domain/entities/ConversationMessage';
+import type { VoiceTranslationMode } from '@/domain/entities/VoiceTranslationMode';
 import { getLanguagePairFromDirection } from '@/domain/entities/TranslationDirection';
 import { useConversation } from '@/presentation/context/ConversationContext';
+import { useVoiceTranslationMode } from '@/presentation/context/VoiceTranslationModeContext';
 import { container } from '@/infrastructure/di/container';
 import { getErrorMessage } from '@/shared/errors/AppError';
 import { logger } from '@/infrastructure/logging/logger';
@@ -26,7 +29,12 @@ function toConversationSpeaker(route: TranslationRoute): ConversationSpeaker {
   return route.speaker === 'user' ? 'me' : 'partner';
 }
 
+function resolveEffectiveVoiceMode(mode: VoiceTranslationMode): VoiceTranslationMode {
+  return mode === 'fast' && Platform.OS !== 'web' ? 'fast' : 'accurate';
+}
+
 export function useVoiceTranslation() {
+  const { mode: voiceMode } = useVoiceTranslationMode();
   const { messages, appendMessage, updateMessage, removeMessage, startNewConversation } =
     useConversation();
   const [state, setState] = useState<VoiceTranslationState>(initialState);
@@ -34,48 +42,123 @@ export function useVoiceTranslation() {
   const recordingStartedRef = useRef(false);
   const startRecordingPromiseRef = useRef<Promise<void> | null>(null);
   const pendingMessageIdRef = useRef<string | null>(null);
+  const activeVoiceModeRef = useRef<VoiceTranslationMode>(voiceMode);
+
+  activeVoiceModeRef.current = voiceMode;
 
   useEffect(() => {
     void container.audioRepository.requestPermission();
   }, []);
 
-  const onPressIn = useCallback(async (route: TranslationRoute) => {
-    if (recordingStartedRef.current || startRecordingPromiseRef.current) return;
+  const createLiveMessage = useCallback(
+    (speaker: ConversationSpeaker, pair: ReturnType<typeof getLanguagePairFromDirection>) => {
+      const messageId = generateId();
+      pendingMessageIdRef.current = messageId;
+      appendMessage(
+        createConversationMessage({
+          id: messageId,
+          speaker,
+          originalText: '',
+          translatedText: '',
+          sourceLanguage: pair.sourceLanguage,
+          targetLanguage: pair.targetLanguage,
+        }),
+      );
+      return messageId;
+    },
+    [appendMessage],
+  );
 
-    activeRouteRef.current = route;
-    recordingStartedRef.current = false;
-    pendingMessageIdRef.current = null;
+  const onPressIn = useCallback(
+    async (route: TranslationRoute) => {
+      if (recordingStartedRef.current || startRecordingPromiseRef.current) return;
 
-    setState((prev) => ({
-      ...prev,
-      status: 'recording',
-      activeRouteId: route.id,
-      error: null,
-    }));
-
-    const startRecording = async () => {
-      await container.translateSpeechUseCase.startRecording();
-      recordingStartedRef.current = true;
-    };
-
-    startRecordingPromiseRef.current = startRecording();
-
-    try {
-      await startRecordingPromiseRef.current;
-    } catch (error) {
-      logger.error('Failed to start recording', error);
-      activeRouteRef.current = null;
+      activeRouteRef.current = route;
       recordingStartedRef.current = false;
+      pendingMessageIdRef.current = null;
+
+      const pair = getLanguagePairFromDirection(route.direction);
+      const speaker = toConversationSpeaker(route);
+      const mode = resolveEffectiveVoiceMode(activeVoiceModeRef.current);
+
       setState((prev) => ({
         ...prev,
-        status: 'error',
-        activeRouteId: null,
-        error: getErrorMessage(error),
+        status: 'recording',
+        activeRouteId: route.id,
+        error: null,
       }));
-    } finally {
-      startRecordingPromiseRef.current = null;
-    }
-  }, []);
+      logger.info('Recording started', { routeId: route.id, mode });
+
+      let liveMessageId: string | null = null;
+      if (mode === 'fast') {
+        liveMessageId = createLiveMessage(speaker, pair);
+        logger.info('FAST MODE START', { messageId: liveMessageId, routeId: route.id });
+        console.log('[FAST DEBUG] FAST MODE START (UI)', { messageId: liveMessageId, mode });
+      }
+
+      const startRecording = async () => {
+        await container.translateSpeechUseCase.startRecording({
+          mode,
+          pair: mode === 'fast' ? pair : undefined,
+          progress:
+            mode === 'fast'
+              ? {
+                  onPartialTranscription: (partialText) => {
+                    const messageId = pendingMessageIdRef.current;
+                    console.log('[FAST DEBUG] onPartialTranscription callback', {
+                      messageId,
+                      partialText,
+                    });
+                    if (!messageId) {
+                      console.log('[FAST DEBUG] onPartialTranscription skipped — no messageId');
+                      return;
+                    }
+                    logger.info('PARTIAL TRANSCRIPT:', partialText);
+                    console.log('[FAST DEBUG] updateMessage call', {
+                      messageId,
+                      field: 'originalText',
+                      partialText,
+                    });
+                    updateMessage(messageId, { originalText: partialText });
+                  },
+                  onPartialTranslation: (originalText, partialTranslated) => {
+                    const messageId = pendingMessageIdRef.current;
+                    if (!messageId) return;
+                    updateMessage(messageId, {
+                      originalText,
+                      translatedText: partialTranslated,
+                    });
+                  },
+                }
+              : undefined,
+        });
+        recordingStartedRef.current = true;
+      };
+
+      startRecordingPromiseRef.current = startRecording();
+
+      try {
+        await startRecordingPromiseRef.current;
+      } catch (error) {
+        logger.error('Failed to start recording', error);
+        activeRouteRef.current = null;
+        recordingStartedRef.current = false;
+        if (liveMessageId) {
+          removeMessage(liveMessageId);
+          pendingMessageIdRef.current = null;
+        }
+        setState((prev) => ({
+          ...prev,
+          status: 'error',
+          activeRouteId: null,
+          error: getErrorMessage(error),
+        }));
+      } finally {
+        startRecordingPromiseRef.current = null;
+      }
+    },
+    [createLiveMessage, removeMessage, updateMessage],
+  );
 
   const onPressOut = useCallback(async () => {
     const route = activeRouteRef.current;
@@ -94,9 +177,7 @@ export function useVoiceTranslation() {
     if (!recordingStartedRef.current) {
       activeRouteRef.current = null;
       setState((prev) =>
-        prev.status === 'recording'
-          ? { ...prev, status: 'idle', activeRouteId: null }
-          : prev,
+        prev.status === 'recording' ? { ...prev, status: 'idle', activeRouteId: null } : prev,
       );
       return;
     }
@@ -105,48 +186,97 @@ export function useVoiceTranslation() {
     activeRouteRef.current = null;
     const pair = getLanguagePairFromDirection(route.direction);
     const speaker = toConversationSpeaker(route);
+    const mode = resolveEffectiveVoiceMode(activeVoiceModeRef.current);
+    const isFastMode = mode === 'fast';
 
     setState((prev) => ({
       ...prev,
       status: 'processing',
       activeRouteId: route.id,
     }));
+    logger.info('Recording stopped', { routeId: route.id, mode });
 
     try {
-      await container.translateSpeechUseCase.stopAndTranslate(pair, {
-        onTranscribed: (originalText) => {
-          if (speaker !== 'me') return;
+      let messageIdForAudio: string | null = pendingMessageIdRef.current;
 
-          const messageId = generateId();
-          pendingMessageIdRef.current = messageId;
-          appendMessage(
-            createConversationMessage({
-              id: messageId,
-              speaker,
-              originalText,
-              translatedText: '',
-            }),
-          );
-        },
-        onTranslated: (originalText, translatedText) => {
-          if (speaker === 'me') {
-            const messageId = pendingMessageIdRef.current;
-            if (!messageId) return;
+      const output = await container.translateSpeechUseCase.stopAndTranslate(
+        pair,
+        {
+          onTranscribed: (originalText) => {
+            if (isFastMode) {
+              const messageId = pendingMessageIdRef.current;
+              if (!messageId) return;
+              logger.info('FINAL TRANSCRIPT:', originalText);
+              updateMessage(messageId, { originalText });
+              messageIdForAudio = messageId;
+              return;
+            }
 
-            updateMessage(messageId, { originalText, translatedText });
-            pendingMessageIdRef.current = null;
-            return;
-          }
+            if (speaker !== 'me') return;
 
-          appendMessage(
-            createConversationMessage({
-              speaker,
+            const messageId = generateId();
+            pendingMessageIdRef.current = messageId;
+            messageIdForAudio = messageId;
+            appendMessage(
+              createConversationMessage({
+                id: messageId,
+                speaker,
+                originalText,
+                translatedText: '',
+                sourceLanguage: pair.sourceLanguage,
+                targetLanguage: pair.targetLanguage,
+              }),
+            );
+            logger.info('Message created', { messageId, speaker, mode });
+          },
+          onTranslated: (originalText, translatedText) => {
+            const languagePatch = {
               originalText,
               translatedText,
-            }),
-          );
+              sourceLanguage: pair.sourceLanguage,
+              targetLanguage: pair.targetLanguage,
+            };
+
+            if (isFastMode) {
+              const messageId = pendingMessageIdRef.current;
+              if (!messageId) return;
+              logger.info('TRANSLATION COMPLETE', { translatedText });
+              updateMessage(messageId, languagePatch);
+              messageIdForAudio = messageId;
+              pendingMessageIdRef.current = null;
+              return;
+            }
+
+            if (speaker === 'me') {
+              const messageId = pendingMessageIdRef.current;
+              if (!messageId) return;
+
+              updateMessage(messageId, languagePatch);
+              messageIdForAudio = messageId;
+              pendingMessageIdRef.current = null;
+              return;
+            }
+
+            const messageId = generateId();
+            messageIdForAudio = messageId;
+            appendMessage(
+              createConversationMessage({
+                id: messageId,
+                speaker,
+                ...languagePatch,
+              }),
+            );
+            logger.info('Message created', { messageId, speaker, mode });
+          },
         },
-      });
+        { mode },
+      );
+
+      if (output.speechAudioUri && messageIdForAudio) {
+        updateMessage(messageIdForAudio, { audioUri: output.speechAudioUri });
+      }
+
+      pendingMessageIdRef.current = null;
 
       setState((prev) => ({
         ...prev,
@@ -159,7 +289,7 @@ export function useVoiceTranslation() {
       const failedMessageId = pendingMessageIdRef.current;
       pendingMessageIdRef.current = null;
 
-      if (failedMessageId && speaker === 'me') {
+      if (failedMessageId) {
         removeMessage(failedMessageId);
       }
 

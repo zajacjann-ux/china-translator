@@ -1,6 +1,7 @@
 import { File, Paths } from 'expo-file-system';
 import type {
   ITextToSpeechRepository,
+  TextToSpeechOptions,
   TextToSpeechResult,
 } from '@/domain/repositories/ITextToSpeechRepository';
 import type { LanguageCode } from '@/domain/entities/Language';
@@ -15,13 +16,18 @@ import { logger } from '@/infrastructure/logging/logger';
 import { generateId } from '@/shared/utils/id';
 
 export class OpenAITextToSpeechRepository implements ITextToSpeechRepository {
-  async synthesize(text: string, language: LanguageCode): Promise<TextToSpeechResult> {
+  async synthesize(
+    text: string,
+    language: LanguageCode,
+    options: TextToSpeechOptions = {},
+  ): Promise<TextToSpeechResult> {
     assertLanguageSupportsTts(language);
     const lang = getLanguage(language);
     const env = getEnvConfig();
     const client = getOpenAIClient();
     const speechInput = prepareTextForNaturalSpeech(text, language);
     const startedAt = Date.now();
+    const speed = options.profile === 'accurate' ? Math.min(env.ttsSpeed, 1) : env.ttsSpeed;
 
     try {
       markPipelineTiming('tts_start');
@@ -31,7 +37,7 @@ export class OpenAITextToSpeechRepository implements ITextToSpeechRepository {
         voice: lang.ttsVoice,
         input: speechInput,
         response_format: 'mp3',
-        speed: env.ttsSpeed,
+        speed,
       });
 
       const buffer = await response.arrayBuffer();
@@ -42,7 +48,7 @@ export class OpenAITextToSpeechRepository implements ITextToSpeechRepository {
       markPipelineTiming('tts_end');
 
       translationDebug.ttsSynthesis({
-        speed: env.ttsSpeed,
+        speed,
         durationMs: Date.now() - startedAt,
         language: lang.code,
         model: env.ttsModel,

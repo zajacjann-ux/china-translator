@@ -5,6 +5,16 @@ export interface TextToSpeechResult {
   durationMs?: number;
 }
 
+export type SpeechQualityProfile = 'fast' | 'accurate';
+
+export interface TextToSpeechOptions {
+  profile?: SpeechQualityProfile;
+}
+
 export interface ITextToSpeechRepository {
-  synthesize(text: string, language: LanguageCode): Promise<TextToSpeechResult>;
+  synthesize(
+    text: string,
+    language: LanguageCode,
+    options?: TextToSpeechOptions,
+  ): Promise<TextToSpeechResult>;
 }

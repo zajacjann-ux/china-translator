@@ -32,6 +32,9 @@ export interface StoredConversationMessage {
   translatedText: string;
   timestamp: string;
   source?: ConversationMessage['source'];
+  sourceLanguage?: LanguageCode;
+  targetLanguage?: LanguageCode;
+  audioUri?: string;
 }
 
 export interface StoredSavedConversation {
@@ -103,6 +106,9 @@ export function toStoredConversation(conversation: SavedConversation): StoredSav
       translatedText: message.translatedText,
       timestamp: message.timestamp.toISOString(),
       source: message.source,
+      sourceLanguage: message.sourceLanguage,
+      targetLanguage: message.targetLanguage,
+      audioUri: message.audioUri,
     })),
   };
 }
@@ -123,6 +129,9 @@ export function fromStoredConversation(stored: StoredSavedConversation): SavedCo
       translatedText: message.translatedText,
       timestamp: new Date(message.timestamp),
       source: message.source,
+      sourceLanguage: message.sourceLanguage,
+      targetLanguage: message.targetLanguage,
+      audioUri: message.audioUri,
     })),
   };
 }

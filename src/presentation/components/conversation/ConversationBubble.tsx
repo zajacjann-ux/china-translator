@@ -4,18 +4,63 @@ import { ThemedText } from '@/presentation/components/ui/ThemedText';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
 import { BorderRadius, Colors, Spacing } from '@/presentation/theme';
 import type { ConversationMessage } from '@/domain/entities/ConversationMessage';
+import { resolveMessageLanguages } from '@/domain/entities/ConversationMessage';
+import type { LanguageCode } from '@/domain/entities/Language';
+import { getLanguage } from '@/domain/entities/Language';
+
+const BUBBLE_COLORS = {
+  me: '#123F35',
+  partner: '#102A4C',
+} as const;
+
+const BUBBLE_DIVIDER = 'rgba(255,255,255,0.22)';
 
 interface ConversationBubbleProps {
   message: ConversationMessage;
-  flag: string;
+  userLanguage: LanguageCode;
+  partnerLanguage: LanguageCode;
   onReplay?: (message: ConversationMessage) => void;
   isReplaying?: boolean;
   replayDisabled?: boolean;
 }
 
+interface MessageTextBlockProps {
+  flag: string;
+  languageLabel: string;
+  text: string;
+  isMe: boolean;
+}
+
+function MessageTextBlock({ flag, languageLabel, text, isMe }: MessageTextBlockProps) {
+  return (
+    <View style={styles.textBlock}>
+      <View style={styles.langRow}>
+        <ThemedText style={styles.flag}>{flag}</ThemedText>
+        <ThemedText
+          variant="caption"
+          color="inverse"
+          style={[styles.langLabel, styles.langLabelOnBubble]}
+        >
+          {languageLabel}
+        </ThemedText>
+      </View>
+      {text.trim() ? (
+        <ThemedText
+          variant="body"
+          color="inverse"
+          style={styles.messageText}
+        >
+          {text}
+        </ThemedText>
+      ) : null}
+    </View>
+  );
+}
+
 function ConversationBubbleComponent({
   message,
-  flag,
+  userLanguage,
+  partnerLanguage,
   onReplay,
   isReplaying = false,
   replayDisabled = false,
@@ -23,7 +68,13 @@ function ConversationBubbleComponent({
   const scheme = useColorScheme();
   const palette = Colors[scheme];
   const isMe = message.speaker === 'me';
-  const displayText = isMe ? message.originalText : message.translatedText;
+  const { sourceLanguage, targetLanguage } = resolveMessageLanguages(
+    message,
+    userLanguage,
+    partnerLanguage,
+  );
+  const sourceLang = getLanguage(sourceLanguage);
+  const targetLang = getLanguage(targetLanguage);
   const canReplay =
     message.source !== 'camera' && Boolean(message.translatedText.trim() && onReplay);
 
@@ -38,12 +89,12 @@ function ConversationBubbleComponent({
         style={[
           styles.bubble,
           isMe
-            ? { backgroundColor: palette.mic }
-            : { backgroundColor: palette.surfaceElevated, borderColor: palette.border, borderWidth: 1 },
+            ? { backgroundColor: BUBBLE_COLORS.me }
+            : { backgroundColor: BUBBLE_COLORS.partner },
         ]}
       >
         <View style={styles.headerRow}>
-          <ThemedText style={styles.flag}>{flag}</ThemedText>
+          <View style={styles.headerSpacer} />
           {canReplay && (
             <Pressable
               onPress={handleReplay}
@@ -56,25 +107,31 @@ function ConversationBubbleComponent({
               accessibilityLabel="Replay translation audio"
             >
               {isReplaying ? (
-                <ActivityIndicator
-                  size="small"
-                  color={isMe ? palette.inverse : palette.primary}
-                />
+                <ActivityIndicator size="small" color={palette.primaryText} />
               ) : (
-                <ThemedText style={[styles.replayIcon, isMe && styles.replayIconInverse]}>
+                <ThemedText style={[styles.replayIcon, styles.replayIconOnBubble]}>
                   🔊
                 </ThemedText>
               )}
             </Pressable>
           )}
         </View>
-        <ThemedText
-          variant="body"
-          color={isMe ? 'inverse' : 'primary'}
-          style={styles.text}
-        >
-          {displayText}
-        </ThemedText>
+
+        <MessageTextBlock
+          flag={sourceLang.flag}
+          languageLabel={sourceLang.label}
+          text={message.originalText}
+          isMe={isMe}
+        />
+
+        <View style={[styles.divider, { backgroundColor: BUBBLE_DIVIDER }]} />
+
+        <MessageTextBlock
+          flag={targetLang.flag}
+          languageLabel={targetLang.label}
+          text={message.translatedText}
+          isMe={isMe}
+        />
       </View>
     </View>
   );
@@ -98,33 +155,57 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    gap: Spacing.xs,
+    gap: Spacing.sm,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.sm,
+    justifyContent: 'flex-end',
+    minHeight: 36,
+  },
+  headerSpacer: {
+    flex: 1,
+  },
+  textBlock: {
+    gap: Spacing.xs,
+  },
+  langRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
   },
   flag: {
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  langLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  langLabelOnBubble: {
+    opacity: 0.85,
+  },
+  messageText: {
+    fontSize: 19,
+    lineHeight: 26,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: 2,
   },
   replayButton: {
-    minWidth: 28,
-    minHeight: 28,
+    minWidth: 36,
+    minHeight: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
   replayIcon: {
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 26,
+    lineHeight: 28,
   },
-  replayIconInverse: {
+  replayIconOnBubble: {
     opacity: 0.95,
-  },
-  text: {
-    fontSize: 16,
-    lineHeight: 22,
   },
 });

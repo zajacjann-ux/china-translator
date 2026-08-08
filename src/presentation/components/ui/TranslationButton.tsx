@@ -15,7 +15,7 @@ import { Colors, Spacing, Typography } from '@/presentation/theme';
 import type { TranslationRoute } from '@/domain/entities/TranslationRoute';
 
 /** Premium 3D voice button diameter (110–130px range). */
-export const VOICE_BUTTON_3D_SIZE = 120;
+export const VOICE_BUTTON_3D_SIZE = 138;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -125,7 +125,6 @@ export function TranslationButton({
   };
 
   const handlePressOut = () => {
-    if (disabled || isProcessing) return;
     pressScale.value = withTiming(1, { duration: 160 });
     if (!isRecording) {
       glowOpacity.value = withTiming(0, { duration: 200 });
@@ -183,7 +182,7 @@ export function TranslationButton({
         <AnimatedPressable
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
-          disabled={disabled || isProcessing}
+          disabled={(disabled && !isRecording) || isProcessing}
           style={[
             styles.buttonShell,
             animatedButtonStyle,
@@ -287,16 +286,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.12)',
   },
   flag: {
-    fontSize: 46,
-    lineHeight: 52,
+    fontSize: 53,
+    lineHeight: 60,
     textShadowColor: 'rgba(0, 0, 0, 0.18)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 3,
   },
   label: {
     ...Typography.button,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 16,
+    lineHeight: 21,
     textAlign: 'center',
     letterSpacing: 0.25,
     paddingHorizontal: Spacing.xs,

@@ -1,6 +1,7 @@
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/presentation/components/ui/ThemedText';
 import { LanguageSelector } from '@/presentation/components/language/LanguageSelector';
+import { VoiceTranslationModeSelector } from '@/presentation/components/settings/VoiceTranslationModeSelector';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
 import { BorderRadius, Colors, Spacing } from '@/presentation/theme';
 
@@ -34,6 +35,8 @@ export function LanguageSelectorSheet({ visible, onClose }: LanguageSelectorShee
           </ThemedText>
 
           <LanguageSelector />
+
+          <VoiceTranslationModeSelector variant="panel" />
         </Pressable>
       </Pressable>
     </Modal>

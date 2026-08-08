@@ -4,11 +4,12 @@ import { ThemedText } from '@/presentation/components/ui/ThemedText';
 import { ConversationBubble } from '@/presentation/components/conversation/ConversationBubble';
 import { Spacing } from '@/presentation/theme';
 import type { ConversationMessage } from '@/domain/entities/ConversationMessage';
+import type { LanguageCode } from '@/domain/entities/Language';
 
 interface ConversationHistoryProps {
   messages: ConversationMessage[];
-  userFlag: string;
-  partnerFlag: string;
+  userLanguage: LanguageCode;
+  partnerLanguage: LanguageCode;
   onReplayMessage?: (message: ConversationMessage) => void;
   replayingMessageId?: string | null;
   replayDisabled?: boolean;
@@ -16,8 +17,8 @@ interface ConversationHistoryProps {
 
 export function ConversationHistory({
   messages,
-  userFlag,
-  partnerFlag,
+  userLanguage,
+  partnerLanguage,
   onReplayMessage,
   replayingMessageId = null,
   replayDisabled = false,
@@ -37,13 +38,14 @@ export function ConversationHistory({
     ({ item }: { item: ConversationMessage }) => (
       <ConversationBubble
         message={item}
-        flag={item.speaker === 'me' ? userFlag : partnerFlag}
+        userLanguage={userLanguage}
+        partnerLanguage={partnerLanguage}
         onReplay={onReplayMessage}
         isReplaying={replayingMessageId === item.id}
         replayDisabled={replayDisabled}
       />
     ),
-    [onReplayMessage, partnerFlag, replayDisabled, replayingMessageId, userFlag],
+    [onReplayMessage, partnerLanguage, replayDisabled, replayingMessageId, userLanguage],
   );
 
   const keyExtractor = useCallback((item: ConversationMessage) => item.id, []);

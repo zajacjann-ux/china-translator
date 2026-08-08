@@ -1,4 +1,4 @@
-import type { ITranslationRepository } from '@/domain/repositories/ITranslationRepository';
+import type { ITranslationRepository, TranslationRequestOptions } from '@/domain/repositories/ITranslationRepository';
 import type { LanguageCode } from '@/domain/entities/Language';
 import { assertLanguageSupportsTranslation, getLanguage } from '@/domain/entities/Language';
 import {
@@ -20,6 +20,7 @@ export class OpenAITranslationRepository implements ITranslationRepository {
     sourceLanguage: LanguageCode,
     targetLanguage: LanguageCode,
     context: TranslationContext = DEFAULT_TRANSLATION_CONTEXT,
+    options: TranslationRequestOptions = {},
   ): Promise<string> {
     assertLanguageSupportsTranslation(sourceLanguage, targetLanguage);
     const env = getEnvConfig();
@@ -28,6 +29,7 @@ export class OpenAITranslationRepository implements ITranslationRepository {
     const target = getLanguage(targetLanguage);
     const resolvedContext = { ...DEFAULT_TRANSLATION_CONTEXT, ...context };
     const systemPrompt = buildTranslationSystemPrompt(sourceLanguage, targetLanguage, resolvedContext);
+    const temperature = options.profile === 'fast' ? 0.1 : 0.2;
 
     translationDebug.translationRequest({
       originalText: text,
@@ -43,7 +45,7 @@ export class OpenAITranslationRepository implements ITranslationRepository {
 
       const response = await client.chat.completions.create({
         model: env.translationModel,
-        temperature: 0.2,
+        temperature,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: text },

@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeScreen } from '@/presentation/components/layout/SafeScreen';
 import { ThemedText } from '@/presentation/components/ui/ThemedText';
+import { VoiceTranslationModeSelector } from '@/presentation/components/settings/VoiceTranslationModeSelector';
 import { Spacing } from '@/presentation/theme';
 
 export default function SettingsScreen() {
@@ -18,9 +19,7 @@ export default function SettingsScreen() {
           <View style={styles.back} />
         </View>
 
-        <ThemedText variant="body" color="secondary" style={styles.placeholder}>
-          App settings will appear here.
-        </ThemedText>
+        <VoiceTranslationModeSelector variant="panel" />
       </View>
     </SafeScreen>
   );
@@ -31,6 +30,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
+    gap: Spacing.lg,
   },
   header: {
     flexDirection: 'row',
@@ -44,8 +44,5 @@ const styles = StyleSheet.create({
     minWidth: 64,
     minHeight: 44,
     justifyContent: 'center',
-  },
-  placeholder: {
-    lineHeight: 22,
   },
 });

@@ -4,7 +4,7 @@ import { ThemedText } from '@/presentation/components/ui/ThemedText';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
 import { BorderRadius, Colors } from '@/presentation/theme';
 
-const ICON_SIZE = 22;
+const ICON_SIZE = 26;
 
 type HeaderIconButtonProps = {
   label: string;
@@ -49,15 +49,15 @@ export function HeaderIconButton(props: HeaderIconButtonProps) {
 
 const styles = StyleSheet.create({
   button: {
-    width: 40,
-    height: 40,
+    width: 48,
+    height: 48,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emoji: {
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 24,
+    lineHeight: 29,
   },
 });

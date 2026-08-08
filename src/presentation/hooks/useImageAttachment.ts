@@ -42,7 +42,11 @@ export function useImageAttachment() {
         { speak: false },
       );
 
-      addCameraMessage(output.result.originalText, output.result.translatedText);
+      addCameraMessage(output.result.originalText, output.result.translatedText, {
+        sourceLanguage: partnerLanguage,
+        targetLanguage: userLanguage,
+        audioUri: output.speechAudioUri ?? undefined,
+      });
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
