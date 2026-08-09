@@ -9,11 +9,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { VoiceButtonFlag } from '@/presentation/components/ui/flags';
 import { ThemedText } from '@/presentation/components/ui/ThemedText';
 import { useColorScheme } from '@/presentation/hooks/useColorScheme';
 import { Colors, Spacing, Typography } from '@/presentation/theme';
-import { getLanguagePairFromDirection } from '@/domain/entities/TranslationDirection';
 import type { TranslationRoute } from '@/domain/entities/TranslationRoute';
 
 /** Premium 3D voice button diameter (110–130px range). */
@@ -64,7 +62,6 @@ export function TranslationButton({
   const buttonSize = VOICE_BUTTON_3D_SIZE;
   const borderWidth = isRecording ? VOICE_BUTTON_BORDER_WIDTH_RECORDING : VOICE_BUTTON_BORDER_WIDTH;
   const flagSize = buttonSize - borderWidth * 2;
-  const { sourceLanguage } = getLanguagePairFromDirection(route.direction);
 
   const pulseScale = useSharedValue(1);
   const pressScale = useSharedValue(1);
@@ -223,7 +220,19 @@ export function TranslationButton({
               },
             ]}
           >
-            <VoiceButtonFlag languageCode={sourceLanguage} size={flagSize} />
+            <ThemedText
+              style={[
+                styles.flagFill,
+                {
+                  fontSize: flagSize * 1.18,
+                  lineHeight: flagSize,
+                  width: flagSize,
+                  height: flagSize,
+                },
+              ]}
+            >
+              {route.buttonFlag}
+            </ThemedText>
 
             {isRecording && (
               <View style={[styles.recordingVeil, { borderRadius: buttonSize / 2 }]} pointerEvents="none" />
@@ -280,6 +289,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+  },
+  flagFill: {
+    textAlign: 'center',
+    includeFontPadding: false,
   },
   recordingVeil: {
     ...StyleSheet.absoluteFill,
