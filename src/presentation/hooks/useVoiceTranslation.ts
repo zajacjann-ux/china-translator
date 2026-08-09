@@ -11,6 +11,14 @@ import { useVoiceTranslationMode } from '@/presentation/context/VoiceTranslation
 import { container } from '@/infrastructure/di/container';
 import { getErrorMessage } from '@/shared/errors/AppError';
 import { logger } from '@/infrastructure/logging/logger';
+import {
+  beginFastPerf,
+  markFastLiveSourceText,
+  markFastLiveTranslatedText,
+  markFastPerfAfterRelease,
+  markFastPerfRelease,
+  resetFastPerf,
+} from '@/infrastructure/logging/fastPerf';
 import { generateId } from '@/shared/utils/id';
 
 interface VoiceTranslationState {
@@ -91,6 +99,7 @@ export function useVoiceTranslation() {
 
       let liveMessageId: string | null = null;
       if (mode === 'fast') {
+        beginFastPerf();
         liveMessageId = createLiveMessage(speaker, pair);
         logger.info('FAST MODE START', { messageId: liveMessageId, routeId: route.id });
         console.log('[FAST DEBUG] FAST MODE START (UI)', { messageId: liveMessageId, mode });
@@ -114,6 +123,7 @@ export function useVoiceTranslation() {
                       return;
                     }
                     logger.info('PARTIAL TRANSCRIPT:', partialText);
+                    markFastLiveSourceText(partialText);
                     console.log('[FAST DEBUG] updateMessage call', {
                       messageId,
                       field: 'originalText',
@@ -124,6 +134,7 @@ export function useVoiceTranslation() {
                   onPartialTranslation: (originalText, partialTranslated) => {
                     const messageId = pendingMessageIdRef.current;
                     if (!messageId) return;
+                    markFastLiveTranslatedText(partialTranslated);
                     updateMessage(messageId, {
                       originalText,
                       translatedText: partialTranslated,
@@ -147,6 +158,7 @@ export function useVoiceTranslation() {
           removeMessage(liveMessageId);
           pendingMessageIdRef.current = null;
         }
+        resetFastPerf();
         setState((prev) => ({
           ...prev,
           status: 'error',
@@ -164,18 +176,27 @@ export function useVoiceTranslation() {
     const route = activeRouteRef.current;
     if (!route) return;
 
+    const mode = resolveEffectiveVoiceMode(activeVoiceModeRef.current);
+    const isFastMode = mode === 'fast';
+
     if (startRecordingPromiseRef.current) {
       try {
         await startRecordingPromiseRef.current;
       } catch {
         activeRouteRef.current = null;
         recordingStartedRef.current = false;
+        if (isFastMode) {
+          resetFastPerf();
+        }
         return;
       }
     }
 
     if (!recordingStartedRef.current) {
       activeRouteRef.current = null;
+      if (isFastMode) {
+        resetFastPerf();
+      }
       setState((prev) =>
         prev.status === 'recording' ? { ...prev, status: 'idle', activeRouteId: null } : prev,
       );
@@ -186,8 +207,6 @@ export function useVoiceTranslation() {
     activeRouteRef.current = null;
     const pair = getLanguagePairFromDirection(route.direction);
     const speaker = toConversationSpeaker(route);
-    const mode = resolveEffectiveVoiceMode(activeVoiceModeRef.current);
-    const isFastMode = mode === 'fast';
 
     setState((prev) => ({
       ...prev,
@@ -195,6 +214,9 @@ export function useVoiceTranslation() {
       activeRouteId: route.id,
     }));
     logger.info('Recording stopped', { routeId: route.id, mode });
+    if (isFastMode) {
+      markFastPerfRelease();
+    }
 
     try {
       let messageIdForAudio: string | null = pendingMessageIdRef.current;
@@ -241,6 +263,7 @@ export function useVoiceTranslation() {
               const messageId = pendingMessageIdRef.current;
               if (!messageId) return;
               logger.info('TRANSLATION COMPLETE', { translatedText });
+              markFastPerfAfterRelease('translation_done', { chars: translatedText.length });
               updateMessage(messageId, languagePatch);
               messageIdForAudio = messageId;
               pendingMessageIdRef.current = null;
@@ -299,6 +322,10 @@ export function useVoiceTranslation() {
         activeRouteId: null,
         error: getErrorMessage(error),
       }));
+    } finally {
+      if (isFastMode) {
+        resetFastPerf();
+      }
     }
   }, [appendMessage, removeMessage, updateMessage]);
 

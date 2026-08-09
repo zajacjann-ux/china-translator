@@ -17,6 +17,10 @@ import {
 import { AppError } from '@/shared/errors/AppError';
 import { MIN_RECORDING_MS } from '@/shared/constants';
 import { logger } from '@/infrastructure/logging/logger';
+import {
+  markFastPerf,
+  markFastPerfAfterRelease,
+} from '@/infrastructure/logging/fastPerf';
 import { DEFAULT_TRANSLATION_CONTEXT } from '@/config/translation.config';
 import {
   FAST_INTERIM_STT_INTERVAL_MS,
@@ -205,6 +209,7 @@ export class TranslateSpeechUseCase {
     try {
       const recording = await this.audioRepository.stopRecording();
       markPipelineTiming('recording_finished');
+      markFastPerfAfterRelease('recording_stopped', { durationMs: recording.durationMs });
 
       if (recording.durationMs < MIN_RECORDING_MS) {
         throw new AppError('EMPTY_TRANSCRIPTION', 'Hold the button longer while speaking.');
@@ -213,9 +218,11 @@ export class TranslateSpeechUseCase {
       const handlers = progress ?? session?.progress;
       let originalText = session?.latestOriginalText.trim() ?? '';
 
+      markFastPerfAfterRelease('final_stt_start');
       const finalStt = await this.speechToTextRepository.transcribe(recording, pair.sourceLanguage, {
         usePrompt: true,
       });
+      markFastPerfAfterRelease('final_stt_done', { textLength: finalStt.text.trim().length });
       const finalOriginalText = finalStt.text.trim();
       if (finalOriginalText) {
         originalText = finalOriginalText;
@@ -234,6 +241,7 @@ export class TranslateSpeechUseCase {
 
       if (!canReuseCachedTranslation) {
         logger.info('TRANSLATION START', { sourceLanguage: pair.sourceLanguage, targetLanguage: pair.targetLanguage });
+        markFastPerfAfterRelease('translation_start');
         translatedText = await this.translationRepository.translate(
           originalText,
           pair.sourceLanguage,
@@ -353,6 +361,7 @@ export class TranslateSpeechUseCase {
     session.interimInFlight = true;
 
     try {
+      markFastPerf('interim_stt_start', { audioMs: Math.round(durationMs) });
       const recording = await this.writePcmRecording(pcm, session.sampleRate, durationMs);
       const sttResult = await this.speechToTextRepository.transcribe(
         recording,
@@ -373,6 +382,7 @@ export class TranslateSpeechUseCase {
       session.latestOriginalText = partialText;
       logger.info('PARTIAL TRANSCRIPT:', partialText);
       console.log('[FAST DEBUG] onPartialTranscription callback firing', { partialText });
+      markFastPerf('interim_stt_done', { textLength: partialText.length, audioMs: Math.round(durationMs) });
       session.progress.onPartialTranscription?.(partialText);
       this.schedulePartialTranslation(partialText);
     } catch (error) {
@@ -452,9 +462,15 @@ export class TranslateSpeechUseCase {
     profile: VoiceTranslationMode,
   ): Promise<string> {
     try {
+      if (profile === 'fast') {
+        markFastPerfAfterRelease('tts_start');
+      }
       const ttsResult = await this.textToSpeechRepository.synthesize(translatedText, targetLanguage, {
         profile,
       });
+      if (profile === 'fast') {
+        markFastPerfAfterRelease('tts_ready', { audioUri: ttsResult.audioUri });
+      }
       await this.audioRepository.playAudio(ttsResult.audioUri);
       return ttsResult.audioUri;
     } catch (error) {

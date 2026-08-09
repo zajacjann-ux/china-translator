@@ -13,7 +13,6 @@ interface ConversationHistoryProps {
   onReplayMessage?: (message: ConversationMessage) => void;
   replayingMessageId?: string | null;
   replayDisabled?: boolean;
-  contentPaddingBottom?: number;
 }
 
 export function ConversationHistory({
@@ -23,7 +22,6 @@ export function ConversationHistory({
   onReplayMessage,
   replayingMessageId = null,
   replayDisabled = false,
-  contentPaddingBottom = 0,
 }: ConversationHistoryProps) {
   const listRef = useRef<FlatList<ConversationMessage>>(null);
 
@@ -69,10 +67,10 @@ export function ConversationHistory({
       keyExtractor={keyExtractor}
       renderItem={renderItem}
       style={styles.list}
-      contentContainerStyle={[styles.content, { paddingBottom: Spacing.sm + contentPaddingBottom }]}
+      contentContainerStyle={styles.content}
       ItemSeparatorComponent={Separator}
       showsVerticalScrollIndicator
-      onContentSizeChange={() => scrollToBottom(messages.length > 1)}
+      onContentSizeChange={() => scrollToBottom(true)}
     />
   );
 }
@@ -84,9 +82,12 @@ function Separator() {
 const styles = StyleSheet.create({
   list: {
     flex: 1,
+    minHeight: 0,
   },
   content: {
-    paddingVertical: Spacing.sm,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
+    flexGrow: 1,
   },
   separator: {
     height: Spacing.sm,

@@ -17,10 +17,6 @@ import type { TranslationRoute } from '@/domain/entities/TranslationRoute';
 /** Premium 3D voice button diameter (110–130px range). */
 export const VOICE_BUTTON_3D_SIZE = 138;
 
-/** Bottom inset for conversation list so messages scroll above the voice controls overlay. */
-export const VOICE_CONTROLS_BOTTOM_INSET =
-  VOICE_BUTTON_3D_SIZE + 36 + Spacing.sm + 21 + Spacing.md + Spacing.md;
-
 /** Matches ConversationBubble speaker colors for voice button borders. */
 const VOICE_BUTTON_BORDER_COLORS = {
   user: '#123F35',

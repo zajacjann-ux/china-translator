@@ -2,7 +2,6 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeScreen } from '@/presentation/components/layout/SafeScreen';
 import {
   TranslationButton,
-  VOICE_CONTROLS_BOTTOM_INSET,
 } from '@/presentation/components/ui/TranslationButton';
 import { ErrorBanner } from '@/presentation/components/ui/ErrorBanner';
 import { ConversationHistory } from '@/presentation/components/conversation/ConversationHistory';
@@ -79,7 +78,6 @@ export default function HomeScreen() {
             onReplayMessage={replayMessage}
             replayingMessageId={replayingMessageId}
             replayDisabled={navDisabled}
-            contentPaddingBottom={VOICE_CONTROLS_BOTTOM_INSET}
           />
 
           <View
@@ -141,17 +139,13 @@ const styles = StyleSheet.create({
   },
   conversationStack: {
     flex: 1,
-    position: 'relative',
+    minHeight: 0,
   },
   bottomBar: {
-    position: 'absolute',
-    left: -Spacing.lg,
-    right: -Spacing.lg,
-    bottom: 0,
+    marginHorizontal: -Spacing.lg,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    zIndex: 2,
   },
   buttonsRow: {
     flexDirection: 'row',

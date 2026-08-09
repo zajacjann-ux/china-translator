@@ -18,10 +18,15 @@ import type {
 import { AppError } from '@/shared/errors/AppError';
 import { logger } from '@/infrastructure/logging/logger';
 import {
+  markFastPerf,
+  markFastPerfAfterRelease,
+  isFastPerfReleasePhase,
+} from '@/infrastructure/logging/fastPerf';
+import { translationDebug } from '@/infrastructure/logging/translationDebug';
+import {
   completePipelineTiming,
   markPipelineTiming,
 } from '@/infrastructure/logging/translationTiming';
-import { translationDebug } from '@/infrastructure/logging/translationDebug';
 import { FAST_CAPTURE_SAMPLE_RATE } from '@/config/voiceTranslation.config';
 import { encodeWavPcm16, mergeInt16Chunks } from '@/shared/utils/wav';
 import { generateId } from '@/shared/utils/id';
@@ -190,6 +195,9 @@ export class ExpoAudioRepository implements IAudioRepository {
         this.player = player;
         player.play();
         markPipelineTiming('audio_playback_start');
+        if (isFastPerfReleasePhase()) {
+          markFastPerfAfterRelease('playback_start');
+        }
         translationDebug.audioPlaybackStarted({ uri });
         completePipelineTiming();
       } catch (error) {
@@ -297,6 +305,7 @@ export class ExpoAudioRepository implements IAudioRepository {
     await this.stream.start();
     this.recordingStartedAt = Date.now();
     this.isRecordingActive = true;
+    markFastPerf('recording_start');
 
     logger.info('Fast stream recording started', {
       streamId: this.stream.id,
