@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { AppError } from '@/shared/errors/AppError';
+import { logger } from '@/infrastructure/logging/logger';
 import { parseTtsSpeed } from '@/config/tts.config';
 import {
   DEFAULT_STT_MODEL,
@@ -112,6 +113,12 @@ function getTtsSpeed(): number {
 export function getEnvConfig(): EnvConfig {
   const openAiApiKey = getOpenAiApiKey();
   if (!openAiApiKey) {
+    logger.error('[OpenAI DEBUG] EXPO_PUBLIC_OPENAI_API_KEY missing at runtime', {
+      ...getOpenAiEnvDebugInfo(),
+      expoPublicOpenAiApiKeyExists: false,
+      failureCategory: 'environment_variable',
+      likelyCause: '1. environment variable issue',
+    });
     throw new AppError('API_KEY_MISSING', API_KEY_MISSING_MESSAGE);
   }
 
@@ -130,6 +137,32 @@ export function getEnvConfig(): EnvConfig {
 export function isApiKeyConfigured(): boolean {
   const key = getOpenAiApiKey();
   return Boolean(key && key.length > 10);
+}
+
+/** Non-secret env diagnostics for preview/production troubleshooting. */
+export function getOpenAiEnvDebugInfo(): {
+  apiKeyExists: boolean;
+  apiKeyFromProcessEnv: boolean;
+  apiKeyFromExpoExtra: boolean;
+  appVariant: string | undefined;
+  sttModel: string;
+  translationModel: string;
+  visionModel: string;
+  ttsModel: string;
+} {
+  const extra = getExtra();
+  return {
+    apiKeyExists: Boolean(getOpenAiApiKey()),
+    apiKeyFromProcessEnv: Boolean(process.env.EXPO_PUBLIC_OPENAI_API_KEY?.trim()),
+    apiKeyFromExpoExtra: Boolean(extra.EXPO_PUBLIC_OPENAI_API_KEY?.trim()),
+    appVariant:
+      Constants.expoConfig?.extra?.appVariant ??
+      (Constants.expoConfig?.extra as { appVariant?: string } | undefined)?.appVariant,
+    sttModel: getSttModel(),
+    translationModel: getTranslationModel(),
+    visionModel: getVisionModel(),
+    ttsModel: getTtsModel(),
+  };
 }
 
 /** Throws a user-friendly error when the API key is missing or invalid. */

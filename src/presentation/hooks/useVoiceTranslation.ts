@@ -5,7 +5,7 @@ import type { TranslationRoute } from '@/domain/entities/TranslationRoute';
 import type { ConversationSpeaker } from '@/domain/entities/ConversationMessage';
 import { createConversationMessage } from '@/domain/entities/ConversationMessage';
 import type { VoiceTranslationMode } from '@/domain/entities/VoiceTranslationMode';
-import { getLanguagePairFromDirection } from '@/domain/entities/TranslationDirection';
+import { getLanguagePairFromDirection, type LanguagePair } from '@/domain/entities/TranslationDirection';
 import { useConversation } from '@/presentation/context/ConversationContext';
 import { useVoiceTranslationMode } from '@/presentation/context/VoiceTranslationModeContext';
 import { container } from '@/infrastructure/di/container';
@@ -20,18 +20,30 @@ import {
   resetFastPerf,
 } from '@/infrastructure/logging/fastPerf';
 import { generateId } from '@/shared/utils/id';
+import { ERROR_AUTO_DISMISS_MS, useAutoDismissError } from '@/presentation/hooks/useAutoDismissError';
 
 interface VoiceTranslationState {
   status: RecordingStatus;
   activeRouteId: string | null;
   error: string | null;
+  canRetry: boolean;
 }
 
 const initialState: VoiceTranslationState = {
   status: 'idle',
   activeRouteId: null,
   error: null,
+  canRetry: false,
 };
+
+interface VoiceRetryContext {
+  route: TranslationRoute;
+  pair: LanguagePair;
+  mode: VoiceTranslationMode;
+  speaker: ConversationSpeaker;
+  messageId: string;
+  originalText: string;
+}
 
 function toConversationSpeaker(route: TranslationRoute): ConversationSpeaker {
   return route.speaker === 'user' ? 'me' : 'partner';
@@ -51,8 +63,50 @@ export function useVoiceTranslation() {
   const startRecordingPromiseRef = useRef<Promise<void> | null>(null);
   const pendingMessageIdRef = useRef<string | null>(null);
   const activeVoiceModeRef = useRef<VoiceTranslationMode>(voiceMode);
+  const retryContextRef = useRef<VoiceRetryContext | null>(null);
+  const lastOriginalTextRef = useRef('');
 
   activeVoiceModeRef.current = voiceMode;
+
+  const resetRecordingState = useCallback(async () => {
+    activeRouteRef.current = null;
+    recordingStartedRef.current = false;
+    startRecordingPromiseRef.current = null;
+    lastOriginalTextRef.current = '';
+    resetFastPerf();
+    try {
+      await container.translateSpeechUseCase.cancelRecording();
+    } catch {
+      // Ignore stale recording cleanup failures.
+    }
+  }, []);
+
+  const clearError = useCallback(() => {
+    retryContextRef.current = null;
+    setState((prev) => ({
+      ...prev,
+      error: null,
+      canRetry: false,
+      status: 'idle',
+      activeRouteId: null,
+    }));
+  }, []);
+
+  const showVoiceError = useCallback(
+    (message: string, retryContext: VoiceRetryContext | null = null) => {
+      retryContextRef.current = retryContext;
+      setState((prev) => ({
+        ...prev,
+        status: 'idle',
+        activeRouteId: null,
+        error: message,
+        canRetry: Boolean(retryContext?.originalText.trim()),
+      }));
+    },
+    [],
+  );
+
+  useAutoDismissError(state.error, clearError, ERROR_AUTO_DISMISS_MS);
 
   useEffect(() => {
     void container.audioRepository.requestPermission();
@@ -94,7 +148,10 @@ export function useVoiceTranslation() {
         status: 'recording',
         activeRouteId: route.id,
         error: null,
+        canRetry: false,
       }));
+      retryContextRef.current = null;
+      lastOriginalTextRef.current = '';
       logger.info('Recording started', { routeId: route.id, mode });
 
       let liveMessageId: string | null = null;
@@ -152,24 +209,17 @@ export function useVoiceTranslation() {
         await startRecordingPromiseRef.current;
       } catch (error) {
         logger.error('Failed to start recording', error);
-        activeRouteRef.current = null;
-        recordingStartedRef.current = false;
         if (liveMessageId) {
           removeMessage(liveMessageId);
           pendingMessageIdRef.current = null;
         }
-        resetFastPerf();
-        setState((prev) => ({
-          ...prev,
-          status: 'error',
-          activeRouteId: null,
-          error: getErrorMessage(error),
-        }));
+        await resetRecordingState();
+        showVoiceError(getErrorMessage(error));
       } finally {
         startRecordingPromiseRef.current = null;
       }
     },
-    [createLiveMessage, removeMessage, updateMessage],
+    [createLiveMessage, removeMessage, resetRecordingState, showVoiceError, updateMessage],
   );
 
   const onPressOut = useCallback(async () => {
@@ -182,23 +232,19 @@ export function useVoiceTranslation() {
     if (startRecordingPromiseRef.current) {
       try {
         await startRecordingPromiseRef.current;
-      } catch {
-        activeRouteRef.current = null;
-        recordingStartedRef.current = false;
-        if (isFastMode) {
-          resetFastPerf();
-        }
+      } catch (error) {
+        await resetRecordingState();
+        showVoiceError(getErrorMessage(error));
         return;
       }
     }
 
     if (!recordingStartedRef.current) {
-      activeRouteRef.current = null;
-      if (isFastMode) {
-        resetFastPerf();
-      }
+      await resetRecordingState();
       setState((prev) =>
-        prev.status === 'recording' ? { ...prev, status: 'idle', activeRouteId: null } : prev,
+        prev.status === 'recording'
+          ? { ...prev, status: 'idle', activeRouteId: null, error: null, canRetry: false }
+          : prev,
       );
       return;
     }
@@ -220,11 +266,13 @@ export function useVoiceTranslation() {
 
     try {
       let messageIdForAudio: string | null = pendingMessageIdRef.current;
+      lastOriginalTextRef.current = '';
 
       const output = await container.translateSpeechUseCase.stopAndTranslate(
         pair,
         {
           onTranscribed: (originalText) => {
+            lastOriginalTextRef.current = originalText;
             if (isFastMode) {
               const messageId = pendingMessageIdRef.current;
               if (!messageId) return;
@@ -300,45 +348,133 @@ export function useVoiceTranslation() {
       }
 
       pendingMessageIdRef.current = null;
+      retryContextRef.current = null;
+      lastOriginalTextRef.current = '';
 
       setState((prev) => ({
         ...prev,
         status: 'idle',
         activeRouteId: null,
         error: null,
+        canRetry: false,
       }));
     } catch (error) {
       logger.error('Voice translation failed', error);
-      const failedMessageId = pendingMessageIdRef.current;
-      pendingMessageIdRef.current = null;
+      await resetRecordingState();
 
-      if (failedMessageId) {
+      const failedMessageId = pendingMessageIdRef.current;
+      let originalText = lastOriginalTextRef.current.trim();
+      if (!originalText && failedMessageId) {
+        const failedMessage = messages.find((message) => message.id === failedMessageId);
+        originalText = failedMessage?.originalText.trim() ?? '';
+      }
+      let retryContext: VoiceRetryContext | null = null;
+
+      if (failedMessageId && originalText) {
+        retryContext = {
+          route,
+          pair,
+          mode,
+          speaker,
+          messageId: failedMessageId,
+          originalText,
+        };
+        pendingMessageIdRef.current = failedMessageId;
+      } else if (failedMessageId) {
         removeMessage(failedMessageId);
+        pendingMessageIdRef.current = null;
       }
 
-      setState((prev) => ({
-        ...prev,
-        status: 'error',
-        activeRouteId: null,
-        error: getErrorMessage(error),
-      }));
+      showVoiceError(getErrorMessage(error), retryContext);
     } finally {
       if (isFastMode) {
         resetFastPerf();
       }
     }
-  }, [appendMessage, removeMessage, updateMessage]);
+  }, [appendMessage, messages, removeMessage, resetRecordingState, showVoiceError, updateMessage]);
 
-  const clearError = useCallback(() => {
-    setState((prev) => ({ ...prev, error: null, status: 'idle' }));
-  }, []);
+  const retryVoiceTranslation = useCallback(async () => {
+    const retryContext = retryContextRef.current;
+    if (!retryContext?.originalText.trim()) {
+      clearError();
+      return;
+    }
+
+    const { route, pair, mode, speaker, messageId, originalText } = retryContext;
+    const isFastMode = mode === 'fast';
+
+    setState((prev) => ({
+      ...prev,
+      status: 'processing',
+      activeRouteId: route.id,
+      error: null,
+      canRetry: false,
+    }));
+
+    try {
+      let messageIdForAudio: string | null = messageId;
+
+      const output = await container.translateSpeechUseCase.retrySpeechTranslation(
+        pair,
+        originalText,
+        {
+          onTranscribed: (text) => {
+            if (isFastMode) {
+              updateMessage(messageId, { originalText: text });
+              messageIdForAudio = messageId;
+              return;
+            }
+
+            if (speaker !== 'me') return;
+            updateMessage(messageId, { originalText: text });
+            messageIdForAudio = messageId;
+          },
+          onTranslated: (sourceText, translatedText) => {
+            const languagePatch = {
+              originalText: sourceText,
+              translatedText,
+              sourceLanguage: pair.sourceLanguage,
+              targetLanguage: pair.targetLanguage,
+            };
+
+            updateMessage(messageId, languagePatch);
+            messageIdForAudio = messageId;
+            pendingMessageIdRef.current = null;
+          },
+        },
+        { mode },
+      );
+
+      if (output.speechAudioUri && messageIdForAudio) {
+        updateMessage(messageIdForAudio, { audioUri: output.speechAudioUri });
+      }
+
+      retryContextRef.current = null;
+      pendingMessageIdRef.current = null;
+
+      setState((prev) => ({
+        ...prev,
+        status: 'idle',
+        activeRouteId: null,
+        error: null,
+        canRetry: false,
+      }));
+    } catch (error) {
+      logger.error('Voice translation retry failed', error);
+      pendingMessageIdRef.current = messageId;
+      showVoiceError(getErrorMessage(error), retryContext);
+    }
+  }, [clearError, showVoiceError, updateMessage]);
 
   const clearConversation = useCallback(() => {
     pendingMessageIdRef.current = null;
+    retryContextRef.current = null;
+    lastOriginalTextRef.current = '';
     startNewConversation();
     setState((prev) => ({
       ...prev,
       error: null,
+      canRetry: false,
       status: 'idle',
       activeRouteId: null,
     }));
@@ -350,12 +486,14 @@ export function useVoiceTranslation() {
   return {
     messages,
     error: state.error,
+    canRetry: state.canRetry,
     isRecording,
     isProcessing,
     activeRouteId: state.activeRouteId,
     onPressIn,
     onPressOut,
     clearError,
+    retryVoiceTranslation,
     clearConversation,
   };
 }

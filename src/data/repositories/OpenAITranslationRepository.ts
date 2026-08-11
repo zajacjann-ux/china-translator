@@ -9,10 +9,10 @@ import {
 } from '@/config/translation.config';
 import { getOpenAIClient } from '@/data/api/openai-client';
 import { getEnvConfig } from '@/infrastructure/config/env';
+import { logOpenAiRequestStart, logTranslationRealFailureReason } from '@/infrastructure/logging/openAiApiDebug';
 import { translationDebug } from '@/infrastructure/logging/translationDebug';
 import { markPipelineTiming } from '@/infrastructure/logging/translationTiming';
 import { AppError } from '@/shared/errors/AppError';
-import { logger } from '@/infrastructure/logging/logger';
 
 export class OpenAITranslationRepository implements ITranslationRepository {
   async translate(
@@ -39,9 +39,27 @@ export class OpenAITranslationRepository implements ITranslationRepository {
       context: resolvedContext.scenarioDescription,
     });
 
+    const translationEndpoint = 'https://api.openai.com/v1/chat/completions';
+    const payloadDebug = {
+      sourceLanguage: source.code,
+      targetLanguage: target.code,
+      inputTextLength: text.length,
+      systemPromptLength: systemPrompt.length,
+      temperature,
+    };
+
     try {
       markPipelineTiming('translation_start');
       const requestStartedAt = Date.now();
+
+      logOpenAiRequestStart(
+        {
+          operation: 'chat.completions.create',
+          endpoint: translationEndpoint,
+          model: env.translationModel,
+        },
+        payloadDebug,
+      );
 
       const response = await client.chat.completions.create({
         model: env.translationModel,
@@ -73,7 +91,15 @@ export class OpenAITranslationRepository implements ITranslationRepository {
 
       return translated;
     } catch (error) {
-      logger.error('GPT translation failed', error);
+      logTranslationRealFailureReason(
+        {
+          operation: 'chat.completions.create',
+          endpoint: translationEndpoint,
+          model: env.translationModel,
+        },
+        error,
+        payloadDebug,
+      );
       if (error instanceof AppError) throw error;
       throw new AppError('TRANSLATION_FAILED', 'Translation failed. Check your connection and try again.', error);
     }

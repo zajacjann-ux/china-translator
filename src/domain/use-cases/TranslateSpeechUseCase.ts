@@ -141,6 +141,47 @@ export class TranslateSpeechUseCase {
     }
   }
 
+  async retrySpeechTranslation(
+    pair: LanguagePair,
+    originalText: string,
+    progress?: TranslateSpeechProgressHandlers,
+    options: StopSpeechRecordingOptions = {},
+  ): Promise<TranslateSpeechOutput> {
+    const mode = options.mode ?? this.activeMode;
+    this.assertPairSupported(pair.sourceLanguage, pair.targetLanguage);
+
+    const trimmed = originalText.trim();
+    if (!trimmed) {
+      throw new AppError('EMPTY_TRANSCRIPTION', 'No speech detected. Please try again.');
+    }
+
+    progress?.onTranscribed?.(trimmed);
+
+    const translatedText = await this.translationRepository.translate(
+      trimmed,
+      pair.sourceLanguage,
+      pair.targetLanguage,
+      DEFAULT_TRANSLATION_CONTEXT,
+      { profile: mode === 'fast' ? 'fast' : 'accurate' },
+    );
+
+    progress?.onTranslated?.(trimmed, translatedText);
+
+    const result = createTranslationResult({
+      direction: pair.direction,
+      sourceLanguage: pair.sourceLanguage,
+      targetLanguage: pair.targetLanguage,
+      mode: 'speech',
+      originalText: trimmed,
+      translatedText,
+      recordingDurationMs: 0,
+    });
+
+    const speechAudioUri = await this.playTranslatedSpeech(translatedText, pair.targetLanguage, mode);
+    this.activeMode = 'accurate';
+    return { result, speechAudioUri };
+  }
+
   private async stopAccurateAndTranslate(
     pair: LanguagePair,
     progress?: TranslateSpeechProgressHandlers,

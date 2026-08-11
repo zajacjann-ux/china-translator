@@ -7,6 +7,7 @@ import { ErrorBanner } from '@/presentation/components/ui/ErrorBanner';
 import { ConversationHistory } from '@/presentation/components/conversation/ConversationHistory';
 import { TopNavigationBar } from '@/presentation/components/navigation/TopNavigationBar';
 import { useVoiceTranslation } from '@/presentation/hooks/useVoiceTranslation';
+import { useAutoDismissError } from '@/presentation/hooks/useAutoDismissError';
 import { useReplayTranslationAudio } from '@/presentation/hooks/useReplayTranslationAudio';
 import { useImageAttachment } from '@/presentation/hooks/useImageAttachment';
 import { useLanguagePair } from '@/presentation/context/LanguagePairContext';
@@ -27,6 +28,8 @@ export default function HomeScreen() {
     onPressIn,
     onPressOut,
     clearError,
+    retryVoiceTranslation,
+    canRetry,
     clearConversation,
   } = useVoiceTranslation();
   const {
@@ -41,6 +44,9 @@ export default function HomeScreen() {
     error: attachmentError,
     clearError: clearAttachmentError,
   } = useImageAttachment();
+
+  useAutoDismissError(attachmentError, clearAttachmentError);
+  useAutoDismissError(replayError, clearReplayError);
 
   if (!isReady) {
     return (
@@ -110,7 +116,11 @@ export default function HomeScreen() {
 
         {error && (
           <View style={styles.footer}>
-            <ErrorBanner message={error} onDismiss={clearError} />
+            <ErrorBanner
+              message={error}
+              onDismiss={clearError}
+              onRetry={canRetry ? retryVoiceTranslation : undefined}
+            />
           </View>
         )}
 

@@ -9,6 +9,7 @@ import { assertLanguageSupportsTts, getLanguage } from '@/domain/entities/Langua
 import { prepareTextForNaturalSpeech } from '@/config/tts.config';
 import { getOpenAIClient } from '@/data/api/openai-client';
 import { getEnvConfig } from '@/infrastructure/config/env';
+import { logOpenAiRequestFailure, logOpenAiRequestStart } from '@/infrastructure/logging/openAiApiDebug';
 import { translationDebug } from '@/infrastructure/logging/translationDebug';
 import { markPipelineTiming } from '@/infrastructure/logging/translationTiming';
 import { AppError } from '@/shared/errors/AppError';
@@ -31,6 +32,12 @@ export class OpenAITextToSpeechRepository implements ITextToSpeechRepository {
 
     try {
       markPipelineTiming('tts_start');
+
+      logOpenAiRequestStart({
+        operation: 'audio.speech.create',
+        endpoint: 'https://api.openai.com/v1/audio/speech',
+        model: env.ttsModel,
+      });
 
       const response = await client.audio.speech.create({
         model: env.ttsModel,
@@ -56,6 +63,14 @@ export class OpenAITextToSpeechRepository implements ITextToSpeechRepository {
 
       return { audioUri: file.uri };
     } catch (error) {
+      logOpenAiRequestFailure(
+        {
+          operation: 'audio.speech.create',
+          endpoint: 'https://api.openai.com/v1/audio/speech',
+          model: env.ttsModel,
+        },
+        error,
+      );
       logger.error('TTS synthesis failed', error);
       throw new AppError('TTS_FAILED', 'Could not generate speech. Please try again.', error);
     }

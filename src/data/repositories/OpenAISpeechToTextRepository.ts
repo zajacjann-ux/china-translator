@@ -10,6 +10,7 @@ import type { LanguageCode } from '@/domain/entities/Language';
 import { assertLanguageSupportsStt, getLanguage } from '@/domain/entities/Language';
 import { getWhisperPrompt, WHISPER_TEMPERATURE } from '@/config/stt.config';
 import { getEnvConfig } from '@/infrastructure/config/env';
+import { logOpenAiHttpFailure, logOpenAiRequestFailure, logOpenAiRequestStart } from '@/infrastructure/logging/openAiApiDebug';
 import { AppError } from '@/shared/errors/AppError';
 import { logger } from '@/infrastructure/logging/logger';
 import { translationDebug } from '@/infrastructure/logging/translationDebug';
@@ -78,6 +79,12 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
       markPipelineTiming('audio_upload_start');
       const requestStartedAt = Date.now();
 
+      logOpenAiRequestStart({
+        operation: 'audio.transcriptions.create',
+        endpoint: WHISPER_TRANSCRIPTIONS_URL,
+        model: env.sttModel,
+      });
+
       const result = await file.upload(WHISPER_TRANSCRIPTIONS_URL, {
         uploadType: UploadType.MULTIPART,
         fieldName: 'file',
@@ -106,6 +113,16 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
           uri: uploadUri,
           sizeBytes,
         });
+        logOpenAiHttpFailure(
+          {
+            operation: 'audio.transcriptions.create',
+            endpoint: WHISPER_TRANSCRIPTIONS_URL,
+            model: env.sttModel,
+          },
+          result.status,
+          result.body,
+          formatWhisperError(result.status, result.body),
+        );
         throw new AppError(
           'TRANSLATION_FAILED',
           formatWhisperError(result.status, result.body),
@@ -147,6 +164,14 @@ export class OpenAISpeechToTextRepository implements ISpeechToTextRepository {
     } catch (error) {
       if (error instanceof AppError) throw error;
 
+      logOpenAiRequestFailure(
+        {
+          operation: 'audio.transcriptions.create',
+          endpoint: WHISPER_TRANSCRIPTIONS_URL,
+          model: env.sttModel,
+        },
+        error,
+      );
       logger.error('Whisper transcription failed', error);
       throw AppError.fromUnknown(error, 'Speech recognition failed. Please try again.');
     }
