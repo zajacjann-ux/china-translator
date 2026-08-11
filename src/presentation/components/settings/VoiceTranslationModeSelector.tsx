@@ -14,18 +14,18 @@ const OPTIONS: Array<{
   hint: string;
 }> = [
   {
-    mode: 'fast',
-    icon: '⚡',
-    label: 'Fast Translation',
-    shortLabel: 'Fast',
-    hint: 'Live text while speaking, translation starts early',
+    mode: 'conversation',
+    icon: '🗣️',
+    label: 'Rozprávanie',
+    shortLabel: 'Rozprávanie',
+    hint: 'Voice conversation with translated speech playback',
   },
   {
-    mode: 'accurate',
-    icon: '🎯',
-    label: 'Accurate Translation',
-    shortLabel: 'Accurate',
-    hint: 'Full recording first, highest transcription quality',
+    mode: 'chat',
+    icon: '💬',
+    label: 'Chat',
+    shortLabel: 'Chat',
+    hint: 'Live text translation while speaking — no audio output',
   },
 ];
 

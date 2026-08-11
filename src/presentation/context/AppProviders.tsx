@@ -12,7 +12,7 @@ interface AppProvidersProps {
  *
  * Order matters:
  * - LanguagePairProvider: language pair for translation routes and persistence
- * - VoiceTranslationModeProvider: fast vs accurate voice mode preference
+ * - VoiceTranslationModeProvider: Rozprávanie vs Chat voice mode preference
  * - ConversationProvider: in-memory chat + saved conversations (uses language pair)
  */
 export function AppProviders({ children }: AppProvidersProps) {

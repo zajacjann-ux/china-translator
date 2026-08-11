@@ -30,9 +30,14 @@ export function ConversationHistory({
     listRef.current?.scrollToEnd({ animated });
   }, [messages.length]);
 
+  const liveScrollKey =
+    messages.length > 0
+      ? `${messages[messages.length - 1]?.originalText.length ?? 0}:${messages[messages.length - 1]?.translatedText.length ?? 0}`
+      : '0';
+
   useEffect(() => {
     scrollToBottom(true);
-  }, [messages, scrollToBottom]);
+  }, [messages, liveScrollKey, scrollToBottom]);
 
   const renderItem = useCallback(
     ({ item }: { item: ConversationMessage }) => (

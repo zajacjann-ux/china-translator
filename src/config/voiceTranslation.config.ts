@@ -15,3 +15,15 @@ export const FAST_TRANSLATION_MIN_CHARS = 4;
 
 /** PCM sample rate for fast capture — matches Whisper-friendly 16 kHz mono. */
 export const FAST_CAPTURE_SAMPLE_RATE = 16000;
+
+/** Chat mode — lower-latency interim STT tuning. */
+export const CHAT_INTERIM_STT_MIN_MS = 200;
+
+export const CHAT_INTERIM_STT_INTERVAL_MS = 350;
+
+export const CHAT_PCM_DEBOUNCE_MS = 50;
+
+/** Minimum interval between live translation requests while speaking. */
+export const CHAT_TRANSLATION_THROTTLE_MS = 350;
+
+export const CHAT_TRANSLATION_MIN_CHARS = 3;

@@ -34,6 +34,7 @@ import {
   cancelPipelineTiming,
   markPipelineTiming,
 } from '@/infrastructure/logging/translationTiming';
+import { ChatLiveSpeechPipeline } from './ChatLiveSpeechPipeline';
 import { encodeWavPcm16, mergeInt16Chunks } from '@/shared/utils/wav';
 import { generateId } from '@/shared/utils/id';
 
@@ -59,7 +60,7 @@ export interface StopSpeechRecordingOptions {
   mode?: VoiceTranslationMode;
 }
 
-interface FastSessionState {
+interface ConversationSessionState {
   pair: LanguagePair;
   progress: TranslateSpeechProgressHandlers;
   pcmChunks: Int16Array[];
@@ -74,45 +75,61 @@ interface FastSessionState {
   latestTranslationSourceText: string;
 }
 
+function usesNativeStreaming(mode: VoiceTranslationMode): boolean {
+  return (mode === 'conversation' || mode === 'chat') && Platform.OS !== 'web';
+}
+
 export class TranslateSpeechUseCase {
-  private activeMode: VoiceTranslationMode = 'accurate';
-  private fastSession: FastSessionState | null = null;
+  private activeMode: VoiceTranslationMode = 'chat';
+  private conversationSession: ConversationSessionState | null = null;
+  private readonly chatPipeline: ChatLiveSpeechPipeline;
 
   constructor(
     private readonly audioRepository: IAudioRepository,
     private readonly speechToTextRepository: ISpeechToTextRepository,
     private readonly translationRepository: ITranslationRepository,
     private readonly textToSpeechRepository: ITextToSpeechRepository,
-  ) {}
+  ) {
+    this.chatPipeline = new ChatLiveSpeechPipeline(
+      this.speechToTextRepository,
+      this.translationRepository,
+    );
+  }
 
   async startRecording(options: StartSpeechRecordingOptions = {}): Promise<void> {
-    const requestedMode = options.mode ?? 'accurate';
-    const mode =
-      requestedMode === 'fast' && Platform.OS === 'web' ? 'accurate' : requestedMode;
+    const mode = options.mode ?? 'chat';
     this.activeMode = mode;
 
-    if (mode === 'fast') {
+    if (usesNativeStreaming(mode)) {
       if (!options.pair || !options.progress) {
-        throw new AppError('RECORDING_FAILED', 'Fast mode requires a language pair.');
+        throw new AppError('RECORDING_FAILED', 'Streaming mode requires a language pair.');
       }
 
-      this.beginFastSession(options.pair, options.progress);
-      logger.info('FAST MODE START', { sourceLanguage: options.pair.sourceLanguage });
-      console.log('[FAST DEBUG] FAST MODE START', {
-        sourceLanguage: options.pair.sourceLanguage,
-        targetLanguage: options.pair.targetLanguage,
-        platform: Platform.OS,
-      });
+      if (mode === 'chat') {
+        this.chatPipeline.beginSession(options.pair, options.progress);
+        logger.info('CHAT MODE START', { sourceLanguage: options.pair.sourceLanguage });
+        await this.audioRepository.startRecording({
+          profile: 'fast',
+          onPcmChunk: (chunk, sampleRate) => {
+            this.chatPipeline.appendPcm(chunk, sampleRate);
+          },
+        });
+        return;
+      }
+
+      this.beginConversationSession(options.pair, options.progress);
+      logger.info('CONVERSATION MODE START', { sourceLanguage: options.pair.sourceLanguage });
       await this.audioRepository.startRecording({
         profile: 'fast',
         onPcmChunk: (chunk, sampleRate) => {
-          this.appendFastPcm(chunk, sampleRate);
+          this.appendConversationPcm(chunk, sampleRate);
         },
       });
       return;
     }
 
-    this.clearFastSession();
+    this.clearConversationSession();
+    this.chatPipeline.clearSession();
     await this.audioRepository.startRecording({ profile: 'accurate' });
   }
 
@@ -122,10 +139,22 @@ export class TranslateSpeechUseCase {
     options: StopSpeechRecordingOptions = {},
   ): Promise<TranslateSpeechOutput> {
     const mode = options.mode ?? this.activeMode;
-    if (mode === 'fast') {
-      return this.stopFastAndTranslate(pair, progress);
+
+    if (mode === 'conversation') {
+      if (usesNativeStreaming('conversation')) {
+        return this.stopConversationAndTranslate(pair, progress);
+      }
+      return this.stopLegacyFileAndTranslate(pair, progress, { withTts: true });
     }
-    return this.stopAccurateAndTranslate(pair, progress);
+
+    if (mode === 'chat') {
+      if (usesNativeStreaming('chat')) {
+        return this.stopChatAndTranslate(pair, progress);
+      }
+      return this.stopLegacyFileAndTranslate(pair, progress, { withTts: false });
+    }
+
+    return this.stopLegacyFileAndTranslate(pair, progress, { withTts: true });
   }
 
   async replaySpeech(audioUri: string): Promise<void> {
@@ -133,7 +162,8 @@ export class TranslateSpeechUseCase {
   }
 
   async cancelRecording(): Promise<void> {
-    this.clearFastSession();
+    this.clearConversationSession();
+    this.chatPipeline.clearSession();
     try {
       await this.audioRepository.stopRecording();
     } catch {
@@ -148,7 +178,7 @@ export class TranslateSpeechUseCase {
     options: StopSpeechRecordingOptions = {},
   ): Promise<TranslateSpeechOutput> {
     const mode = options.mode ?? this.activeMode;
-    this.assertPairSupported(pair.sourceLanguage, pair.targetLanguage);
+    this.assertPairSupported(pair.sourceLanguage, pair.targetLanguage, mode);
 
     const trimmed = originalText.trim();
     if (!trimmed) {
@@ -162,7 +192,7 @@ export class TranslateSpeechUseCase {
       pair.sourceLanguage,
       pair.targetLanguage,
       DEFAULT_TRANSLATION_CONTEXT,
-      { profile: mode === 'fast' ? 'fast' : 'accurate' },
+      { profile: 'fast' },
     );
 
     progress?.onTranslated?.(trimmed, translatedText);
@@ -177,16 +207,22 @@ export class TranslateSpeechUseCase {
       recordingDurationMs: 0,
     });
 
-    const speechAudioUri = await this.playTranslatedSpeech(translatedText, pair.targetLanguage, mode);
-    this.activeMode = 'accurate';
+    if (mode === 'chat') {
+      this.activeMode = 'chat';
+      return { result, speechAudioUri: '' };
+    }
+
+    const speechAudioUri = await this.playTranslatedSpeech(translatedText, pair.targetLanguage, 'conversation');
+    this.activeMode = 'chat';
     return { result, speechAudioUri };
   }
 
-  private async stopAccurateAndTranslate(
+  private async stopLegacyFileAndTranslate(
     pair: LanguagePair,
     progress?: TranslateSpeechProgressHandlers,
+    options: { withTts: boolean } = { withTts: true },
   ): Promise<TranslateSpeechOutput> {
-    this.assertPairSupported(pair.sourceLanguage, pair.targetLanguage);
+    this.assertPairSupported(pair.sourceLanguage, pair.targetLanguage, this.activeMode);
     beginPipelineTiming();
 
     try {
@@ -212,7 +248,7 @@ export class TranslateSpeechUseCase {
         pair.sourceLanguage,
         pair.targetLanguage,
         DEFAULT_TRANSLATION_CONTEXT,
-        { profile: 'accurate' },
+        { profile: 'fast' },
       );
 
       progress?.onTranslated?.(originalText, translatedText);
@@ -227,25 +263,28 @@ export class TranslateSpeechUseCase {
         recordingDurationMs: recording.durationMs,
       });
 
-      const speechAudioUri = await this.playTranslatedSpeech(translatedText, pair.targetLanguage, 'accurate');
+      if (!options.withTts) {
+        return { result, speechAudioUri: '' };
+      }
+
+      const speechAudioUri = await this.playTranslatedSpeech(translatedText, pair.targetLanguage, 'conversation');
       return { result, speechAudioUri };
     } catch (error) {
       cancelPipelineTiming();
       throw error;
     } finally {
-      this.activeMode = 'accurate';
+      this.activeMode = 'chat';
     }
   }
-
-  private async stopFastAndTranslate(
+  private async stopConversationAndTranslate(
     pair: LanguagePair,
     progress?: TranslateSpeechProgressHandlers,
   ): Promise<TranslateSpeechOutput> {
-    this.assertPairSupported(pair.sourceLanguage, pair.targetLanguage);
+    this.assertPairSupported(pair.sourceLanguage, pair.targetLanguage, 'conversation');
     beginPipelineTiming();
 
-    const session = this.fastSession;
-    this.clearFastSessionTimers();
+    const session = this.conversationSession;
+    this.clearConversationSessionTimers();
 
     try {
       const recording = await this.audioRepository.stopRecording();
@@ -307,20 +346,43 @@ export class TranslateSpeechUseCase {
         recordingDurationMs: recording.durationMs,
       });
 
-      const speechAudioUri = await this.playTranslatedSpeech(translatedText, pair.targetLanguage, 'fast');
+      const speechAudioUri = await this.playTranslatedSpeech(translatedText, pair.targetLanguage, 'conversation');
       return { result, speechAudioUri };
     } catch (error) {
       cancelPipelineTiming();
       throw error;
     } finally {
-      this.fastSession = null;
-      this.activeMode = 'accurate';
+      this.conversationSession = null;
+      this.activeMode = 'chat';
     }
   }
 
-  private beginFastSession(pair: LanguagePair, progress: TranslateSpeechProgressHandlers): void {
-    this.clearFastSession();
-    this.fastSession = {
+  private async stopChatAndTranslate(
+    pair: LanguagePair,
+    progress?: TranslateSpeechProgressHandlers,
+  ): Promise<TranslateSpeechOutput> {
+    this.assertPairSupported(pair.sourceLanguage, pair.targetLanguage, 'chat');
+    beginPipelineTiming();
+
+    try {
+      const recording = await this.audioRepository.stopRecording();
+      markPipelineTiming('recording_finished');
+      return await this.chatPipeline.finalize(recording, progress);
+    } catch (error) {
+      cancelPipelineTiming();
+      throw error;
+    } finally {
+      this.activeMode = 'chat';
+    }
+  }
+
+  private beginConversationSession(
+    pair: LanguagePair,
+    progress: TranslateSpeechProgressHandlers,
+  ): void {
+    this.clearConversationSession();
+
+    this.conversationSession = {
       pair,
       progress,
       pcmChunks: [],
@@ -335,38 +397,37 @@ export class TranslateSpeechUseCase {
       latestTranslationSourceText: '',
     };
 
-    this.fastSession.interimTimer = setInterval(() => {
-      this.scheduleInterimPass();
+    this.conversationSession.interimTimer = setInterval(() => {
+      this.scheduleConversationInterimPass();
     }, FAST_INTERIM_STT_INTERVAL_MS);
 
     setTimeout(() => {
-      this.scheduleInterimPass();
+      this.scheduleConversationInterimPass();
     }, FAST_INTERIM_STT_MIN_MS);
   }
 
-  private appendFastPcm(chunk: Int16Array, sampleRate: number): void {
-    if (!this.fastSession) {
-      console.log('[FAST DEBUG] appendFastPcm skipped — no fastSession');
-      return;
-    }
-    this.fastSession.pcmChunks.push(chunk);
-    this.fastSession.sampleRate = sampleRate;
+  private appendConversationPcm(chunk: Int16Array, sampleRate: number): void {
+    const session = this.conversationSession;
+    if (!session) return;
 
-    const pcm = mergeInt16Chunks(this.fastSession.pcmChunks);
-    const durationMs = (pcm.length / this.fastSession.sampleRate) * 1000;
+    session.pcmChunks.push(chunk);
+    session.sampleRate = sampleRate;
+
+    const pcm = mergeInt16Chunks(session.pcmChunks);
+    const durationMs = (pcm.length / session.sampleRate) * 1000;
     if (durationMs < FAST_INTERIM_STT_MIN_MS) return;
 
-    if (this.fastSession.pcmDebounceTimer) {
-      clearTimeout(this.fastSession.pcmDebounceTimer);
+    if (session.pcmDebounceTimer) {
+      clearTimeout(session.pcmDebounceTimer);
     }
 
-    this.fastSession.pcmDebounceTimer = setTimeout(() => {
-      this.scheduleInterimPass();
+    session.pcmDebounceTimer = setTimeout(() => {
+      this.scheduleConversationInterimPass();
     }, FAST_PCM_DEBOUNCE_MS);
   }
 
-  private scheduleInterimPass(): void {
-    const session = this.fastSession;
+  private scheduleConversationInterimPass(): void {
+    const session = this.conversationSession;
     if (!session) return;
 
     if (session.interimInFlight) {
@@ -374,30 +435,16 @@ export class TranslateSpeechUseCase {
       return;
     }
 
-    void this.runInterimPass();
+    void this.runConversationInterimPass();
   }
 
-  private async runInterimPass(): Promise<void> {
-    const session = this.fastSession;
-    if (!session || session.interimInFlight) {
-      console.log('[FAST DEBUG] runInterimPass skipped', {
-        hasSession: Boolean(session),
-        interimInFlight: session?.interimInFlight ?? false,
-      });
-      return;
-    }
+  private async runConversationInterimPass(): Promise<void> {
+    const session = this.conversationSession;
+    if (!session || session.interimInFlight) return;
 
     const pcm = mergeInt16Chunks(session.pcmChunks);
     const durationMs = (pcm.length / session.sampleRate) * 1000;
-    console.log('[FAST DEBUG] runInterimPass executing', {
-      pcmSamples: pcm.length,
-      durationMs: Math.round(durationMs),
-      minRequiredMs: FAST_INTERIM_STT_MIN_MS,
-    });
-    if (durationMs < FAST_INTERIM_STT_MIN_MS) {
-      console.log('[FAST DEBUG] runInterimPass aborted — not enough audio yet');
-      return;
-    }
+    if (durationMs < FAST_INTERIM_STT_MIN_MS) return;
 
     session.interimInFlight = true;
 
@@ -410,37 +457,27 @@ export class TranslateSpeechUseCase {
         { usePrompt: false, allowEmpty: true },
       );
       const partialText = sttResult.text.trim();
-      console.log('[FAST DEBUG] Whisper partial response', {
-        text: partialText || '(empty)',
-        textLength: partialText.length,
-        previousText: session.latestOriginalText || '(none)',
-      });
-      if (!partialText || partialText === session.latestOriginalText) {
-        console.log('[FAST DEBUG] runInterimPass — no UI update (empty or unchanged)');
-        return;
-      }
+      if (!partialText || partialText === session.latestOriginalText) return;
 
       session.latestOriginalText = partialText;
       logger.info('PARTIAL TRANSCRIPT:', partialText);
-      console.log('[FAST DEBUG] onPartialTranscription callback firing', { partialText });
       markFastPerf('interim_stt_done', { textLength: partialText.length, audioMs: Math.round(durationMs) });
       session.progress.onPartialTranscription?.(partialText);
-      this.schedulePartialTranslation(partialText);
+      this.scheduleConversationPartialTranslation(partialText);
     } catch (error) {
-      console.log('[FAST DEBUG] runInterimPass failed', error);
-      logger.warn('Fast interim transcription failed', error);
+      logger.warn('Conversation interim transcription failed', error);
     } finally {
       session.interimInFlight = false;
 
       if (session.interimPassPending) {
         session.interimPassPending = false;
-        this.scheduleInterimPass();
+        this.scheduleConversationInterimPass();
       }
     }
   }
 
-  private schedulePartialTranslation(originalText: string): void {
-    const session = this.fastSession;
+  private scheduleConversationPartialTranslation(originalText: string): void {
+    const session = this.conversationSession;
     if (!session) return;
 
     if (originalText.trim().length < FAST_TRANSLATION_MIN_CHARS) return;
@@ -450,12 +487,12 @@ export class TranslateSpeechUseCase {
     }
 
     session.translationTimer = setTimeout(() => {
-      void this.runPartialTranslation(originalText);
+      void this.runConversationPartialTranslation(originalText);
     }, FAST_TRANSLATION_DEBOUNCE_MS);
   }
 
-  private async runPartialTranslation(originalText: string): Promise<void> {
-    const session = this.fastSession;
+  private async runConversationPartialTranslation(originalText: string): Promise<void> {
+    const session = this.conversationSession;
     if (!session) return;
     if (originalText !== session.latestOriginalText) return;
 
@@ -474,7 +511,7 @@ export class TranslateSpeechUseCase {
       session.latestTranslationSourceText = originalText;
       session.progress.onPartialTranslation?.(originalText, translatedText);
     } catch (error) {
-      logger.warn('Fast partial translation failed', error);
+      logger.warn('Conversation partial translation failed', error);
     }
   }
 
@@ -502,16 +539,16 @@ export class TranslateSpeechUseCase {
     targetLanguage: LanguageCode,
     profile: VoiceTranslationMode,
   ): Promise<string> {
+    if (profile === 'chat') {
+      return '';
+    }
+
     try {
-      if (profile === 'fast') {
-        markFastPerfAfterRelease('tts_start');
-      }
+      markFastPerfAfterRelease('tts_start');
       const ttsResult = await this.textToSpeechRepository.synthesize(translatedText, targetLanguage, {
-        profile,
+        profile: 'fast',
       });
-      if (profile === 'fast') {
-        markFastPerfAfterRelease('tts_ready', { audioUri: ttsResult.audioUri });
-      }
+      markFastPerfAfterRelease('tts_ready', { audioUri: ttsResult.audioUri });
       await this.audioRepository.playAudio(ttsResult.audioUri);
       return ttsResult.audioUri;
     } catch (error) {
@@ -521,31 +558,37 @@ export class TranslateSpeechUseCase {
     }
   }
 
-  private clearFastSessionTimers(): void {
-    if (!this.fastSession) return;
+  private clearConversationSessionTimers(): void {
+    if (!this.conversationSession) return;
 
-    if (this.fastSession.interimTimer) {
-      clearInterval(this.fastSession.interimTimer);
+    if (this.conversationSession.interimTimer) {
+      clearInterval(this.conversationSession.interimTimer);
     }
-    if (this.fastSession.pcmDebounceTimer) {
-      clearTimeout(this.fastSession.pcmDebounceTimer);
+    if (this.conversationSession.pcmDebounceTimer) {
+      clearTimeout(this.conversationSession.pcmDebounceTimer);
     }
-    if (this.fastSession.translationTimer) {
-      clearTimeout(this.fastSession.translationTimer);
+    if (this.conversationSession.translationTimer) {
+      clearTimeout(this.conversationSession.translationTimer);
     }
   }
 
-  private clearFastSession(): void {
-    this.clearFastSessionTimers();
-    this.fastSession = null;
+  private clearConversationSession(): void {
+    this.clearConversationSessionTimers();
+    this.conversationSession = null;
   }
 
-  private assertPairSupported(source: LanguageCode, target: LanguageCode): void {
+  private assertPairSupported(
+    source: LanguageCode,
+    target: LanguageCode,
+    mode: VoiceTranslationMode = this.activeMode,
+  ): void {
     if (source === target) {
       throw new AppError('TRANSLATION_FAILED', 'Source and target language must be different.');
     }
     assertLanguageSupportsStt(source);
     assertLanguageSupportsTranslation(source, target);
-    assertLanguageSupportsTts(target);
+    if (mode !== 'chat') {
+      assertLanguageSupportsTts(target);
+    }
   }
 }

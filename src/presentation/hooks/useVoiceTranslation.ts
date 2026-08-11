@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform } from 'react-native';
 import type { RecordingStatus } from '@/domain/entities/RecordingSession';
 import type { TranslationRoute } from '@/domain/entities/TranslationRoute';
 import type { ConversationSpeaker } from '@/domain/entities/ConversationMessage';
 import { createConversationMessage } from '@/domain/entities/ConversationMessage';
 import type { VoiceTranslationMode } from '@/domain/entities/VoiceTranslationMode';
+import {
+  isChatMode,
+  isConversationMode,
+  usesLiveStreamingCapture,
+} from '@/domain/entities/voiceModeHelpers';
 import { getLanguagePairFromDirection, type LanguagePair } from '@/domain/entities/TranslationDirection';
 import { useConversation } from '@/presentation/context/ConversationContext';
 import { useVoiceTranslationMode } from '@/presentation/context/VoiceTranslationModeContext';
@@ -20,6 +24,7 @@ import {
   resetFastPerf,
 } from '@/infrastructure/logging/fastPerf';
 import { generateId } from '@/shared/utils/id';
+import { markChatPerfRelease, resetChatPerf } from '@/infrastructure/logging/chatPerf';
 import { ERROR_AUTO_DISMISS_MS, useAutoDismissError } from '@/presentation/hooks/useAutoDismissError';
 
 interface VoiceTranslationState {
@@ -49,10 +54,6 @@ function toConversationSpeaker(route: TranslationRoute): ConversationSpeaker {
   return route.speaker === 'user' ? 'me' : 'partner';
 }
 
-function resolveEffectiveVoiceMode(mode: VoiceTranslationMode): VoiceTranslationMode {
-  return mode === 'fast' && Platform.OS !== 'web' ? 'fast' : 'accurate';
-}
-
 export function useVoiceTranslation() {
   const { mode: voiceMode } = useVoiceTranslationMode();
   const { messages, appendMessage, updateMessage, removeMessage, startNewConversation } =
@@ -74,6 +75,7 @@ export function useVoiceTranslation() {
     startRecordingPromiseRef.current = null;
     lastOriginalTextRef.current = '';
     resetFastPerf();
+    resetChatPerf();
     try {
       await container.translateSpeechUseCase.cancelRecording();
     } catch {
@@ -141,7 +143,10 @@ export function useVoiceTranslation() {
 
       const pair = getLanguagePairFromDirection(route.direction);
       const speaker = toConversationSpeaker(route);
-      const mode = resolveEffectiveVoiceMode(activeVoiceModeRef.current);
+      const mode = activeVoiceModeRef.current;
+      const isLiveMode = usesLiveStreamingCapture(mode);
+      const isConversation = isConversationMode(mode);
+      const isChat = isChatMode(mode);
 
       setState((prev) => ({
         ...prev,
@@ -155,43 +160,39 @@ export function useVoiceTranslation() {
       logger.info('Recording started', { routeId: route.id, mode });
 
       let liveMessageId: string | null = null;
-      if (mode === 'fast') {
-        beginFastPerf();
+      if (isLiveMode) {
+        if (isConversation) {
+          beginFastPerf();
+        }
         liveMessageId = createLiveMessage(speaker, pair);
-        logger.info('FAST MODE START', { messageId: liveMessageId, routeId: route.id });
-        console.log('[FAST DEBUG] FAST MODE START (UI)', { messageId: liveMessageId, mode });
+        logger.info('LIVE MODE START', { messageId: liveMessageId, routeId: route.id, mode });
+      } else if (isChat) {
+        // Web fallback: no PCM streaming — message created on release.
+        logger.info('CHAT FILE MODE START (web)', { routeId: route.id });
       }
 
       const startRecording = async () => {
         await container.translateSpeechUseCase.startRecording({
           mode,
-          pair: mode === 'fast' ? pair : undefined,
+          pair: isLiveMode ? pair : undefined,
           progress:
-            mode === 'fast'
+            isLiveMode
               ? {
                   onPartialTranscription: (partialText) => {
                     const messageId = pendingMessageIdRef.current;
-                    console.log('[FAST DEBUG] onPartialTranscription callback', {
-                      messageId,
-                      partialText,
-                    });
-                    if (!messageId) {
-                      console.log('[FAST DEBUG] onPartialTranscription skipped — no messageId');
-                      return;
-                    }
+                    if (!messageId) return;
                     logger.info('PARTIAL TRANSCRIPT:', partialText);
-                    markFastLiveSourceText(partialText);
-                    console.log('[FAST DEBUG] updateMessage call', {
-                      messageId,
-                      field: 'originalText',
-                      partialText,
-                    });
+                    if (isConversation) {
+                      markFastLiveSourceText(partialText);
+                    }
                     updateMessage(messageId, { originalText: partialText });
                   },
                   onPartialTranslation: (originalText, partialTranslated) => {
                     const messageId = pendingMessageIdRef.current;
                     if (!messageId) return;
-                    markFastLiveTranslatedText(partialTranslated);
+                    if (isConversation) {
+                      markFastLiveTranslatedText(partialTranslated);
+                    }
                     updateMessage(messageId, {
                       originalText,
                       translatedText: partialTranslated,
@@ -226,8 +227,10 @@ export function useVoiceTranslation() {
     const route = activeRouteRef.current;
     if (!route) return;
 
-    const mode = resolveEffectiveVoiceMode(activeVoiceModeRef.current);
-    const isFastMode = mode === 'fast';
+    const mode = activeVoiceModeRef.current;
+    const isLiveMode = usesLiveStreamingCapture(mode);
+    const isConversation = isConversationMode(mode);
+    const isChat = isChatMode(mode);
 
     if (startRecordingPromiseRef.current) {
       try {
@@ -260,8 +263,10 @@ export function useVoiceTranslation() {
       activeRouteId: route.id,
     }));
     logger.info('Recording stopped', { routeId: route.id, mode });
-    if (isFastMode) {
+    if (isConversation) {
       markFastPerfRelease();
+    } else if (isChat) {
+      markChatPerfRelease();
     }
 
     try {
@@ -273,7 +278,7 @@ export function useVoiceTranslation() {
         {
           onTranscribed: (originalText) => {
             lastOriginalTextRef.current = originalText;
-            if (isFastMode) {
+            if (isLiveMode) {
               const messageId = pendingMessageIdRef.current;
               if (!messageId) return;
               logger.info('FINAL TRANSCRIPT:', originalText);
@@ -307,11 +312,13 @@ export function useVoiceTranslation() {
               targetLanguage: pair.targetLanguage,
             };
 
-            if (isFastMode) {
+            if (isLiveMode) {
               const messageId = pendingMessageIdRef.current;
               if (!messageId) return;
               logger.info('TRANSLATION COMPLETE', { translatedText });
-              markFastPerfAfterRelease('translation_done', { chars: translatedText.length });
+              if (isConversation) {
+                markFastPerfAfterRelease('translation_done', { chars: translatedText.length });
+              }
               updateMessage(messageId, languagePatch);
               messageIdForAudio = messageId;
               pendingMessageIdRef.current = null;
@@ -343,7 +350,7 @@ export function useVoiceTranslation() {
         { mode },
       );
 
-      if (output.speechAudioUri && messageIdForAudio) {
+      if (output.speechAudioUri && messageIdForAudio && !isChat) {
         updateMessage(messageIdForAudio, { audioUri: output.speechAudioUri });
       }
 
@@ -387,8 +394,11 @@ export function useVoiceTranslation() {
 
       showVoiceError(getErrorMessage(error), retryContext);
     } finally {
-      if (isFastMode) {
+      if (isConversation) {
         resetFastPerf();
+      }
+      if (isChat) {
+        resetChatPerf();
       }
     }
   }, [appendMessage, messages, removeMessage, resetRecordingState, showVoiceError, updateMessage]);
@@ -401,7 +411,8 @@ export function useVoiceTranslation() {
     }
 
     const { route, pair, mode, speaker, messageId, originalText } = retryContext;
-    const isFastMode = mode === 'fast';
+    const isLiveMode = usesLiveStreamingCapture(mode);
+    const isChat = isChatMode(mode);
 
     setState((prev) => ({
       ...prev,
@@ -419,7 +430,7 @@ export function useVoiceTranslation() {
         originalText,
         {
           onTranscribed: (text) => {
-            if (isFastMode) {
+            if (isLiveMode) {
               updateMessage(messageId, { originalText: text });
               messageIdForAudio = messageId;
               return;
@@ -445,7 +456,7 @@ export function useVoiceTranslation() {
         { mode },
       );
 
-      if (output.speechAudioUri && messageIdForAudio) {
+      if (output.speechAudioUri && messageIdForAudio && !isChat) {
         updateMessage(messageIdForAudio, { audioUri: output.speechAudioUri });
       }
 

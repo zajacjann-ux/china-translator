@@ -76,7 +76,8 @@ function ConversationBubbleComponent({
   const sourceLang = getLanguage(sourceLanguage);
   const targetLang = getLanguage(targetLanguage);
   const canReplay =
-    message.source !== 'camera' && Boolean(message.translatedText.trim() && onReplay);
+    message.source !== 'camera' &&
+    Boolean(message.audioUri && message.translatedText.trim() && onReplay);
 
   const handleReplay = () => {
     if (!canReplay || replayDisabled || isReplaying) return;

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   DEFAULT_VOICE_TRANSLATION_MODE,
-  isVoiceTranslationMode,
+  normalizeVoiceTranslationMode,
   type VoiceTranslationMode,
 } from '@/domain/entities/VoiceTranslationMode';
 
@@ -12,7 +12,7 @@ export async function loadVoiceTranslationMode(): Promise<VoiceTranslationMode> 
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_VOICE_TRANSLATION_MODE;
     const parsed = JSON.parse(raw) as { mode?: unknown };
-    return isVoiceTranslationMode(parsed.mode) ? parsed.mode : DEFAULT_VOICE_TRANSLATION_MODE;
+    return normalizeVoiceTranslationMode(parsed.mode);
   } catch {
     return DEFAULT_VOICE_TRANSLATION_MODE;
   }
