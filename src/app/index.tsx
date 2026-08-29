@@ -164,8 +164,9 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   footer: {
-    alignItems: 'center',
+    alignItems: 'stretch',
     marginTop: Spacing.sm,
+    width: '100%',
   },
   loading: {
     flex: 1,

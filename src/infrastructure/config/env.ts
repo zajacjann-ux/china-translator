@@ -139,6 +139,11 @@ export function isApiKeyConfigured(): boolean {
   return Boolean(key && key.length > 10);
 }
 
+/** Realtime Chat is intentionally limited to development and demo/preview variants. */
+export function isRealtimeChatEnabled(): boolean {
+  return __DEV__ || getOpenAiEnvDebugInfo().appVariant !== 'production';
+}
+
 /** Non-secret env diagnostics for preview/production troubleshooting. */
 export function getOpenAiEnvDebugInfo(): {
   apiKeyExists: boolean;

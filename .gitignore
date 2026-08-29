@@ -44,3 +44,4 @@ yarn-error.*
 *.swo
 .env
 .env
+rabbitalk-dev.apk

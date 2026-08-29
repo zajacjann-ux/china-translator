@@ -29,7 +29,7 @@ export class AppError extends Error {
 }
 
 export function getErrorMessage(error: unknown): string {
-  if (error instanceof AppError) return error.message;
-  if (error instanceof Error) return error.message;
+  if (error instanceof AppError && error.message.trim()) return error.message;
+  if (error instanceof Error && error.message.trim()) return error.message;
   return 'Something went wrong. Please try again.';
 }

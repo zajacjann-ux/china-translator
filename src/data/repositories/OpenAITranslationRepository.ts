@@ -29,7 +29,6 @@ export class OpenAITranslationRepository implements ITranslationRepository {
     const target = getLanguage(targetLanguage);
     const resolvedContext = { ...DEFAULT_TRANSLATION_CONTEXT, ...context };
     const systemPrompt = buildTranslationSystemPrompt(sourceLanguage, targetLanguage, resolvedContext);
-    const temperature = options.profile === 'fast' ? 0.1 : 0.2;
 
     translationDebug.translationRequest({
       originalText: text,
@@ -45,7 +44,7 @@ export class OpenAITranslationRepository implements ITranslationRepository {
       targetLanguage: target.code,
       inputTextLength: text.length,
       systemPromptLength: systemPrompt.length,
-      temperature,
+      profile: options.profile ?? 'default',
     };
 
     try {
@@ -63,7 +62,6 @@ export class OpenAITranslationRepository implements ITranslationRepository {
 
       const response = await client.chat.completions.create({
         model: env.translationModel,
-        temperature,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: text },

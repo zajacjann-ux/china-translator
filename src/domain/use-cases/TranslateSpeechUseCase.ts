@@ -4,7 +4,7 @@ import type { LanguageCode } from '../entities/Language';
 import type { LanguagePair } from '../entities/TranslationDirection';
 import type { TranslationResult } from '../entities/TranslationResult';
 import type { VoiceTranslationMode } from '../entities/VoiceTranslationMode';
-import type { IAudioRepository } from '../repositories/IAudioRepository';
+import type { AudioRecording, IAudioRepository } from '../repositories/IAudioRepository';
 import type { ISpeechToTextRepository } from '../repositories/ISpeechToTextRepository';
 import type { ITranslationRepository } from '../repositories/ITranslationRepository';
 import type { ITextToSpeechRepository } from '../repositories/ITextToSpeechRepository';
@@ -37,6 +37,7 @@ import {
 import { ChatLiveSpeechPipeline } from './ChatLiveSpeechPipeline';
 import { encodeWavPcm16, mergeInt16Chunks } from '@/shared/utils/wav';
 import { generateId } from '@/shared/utils/id';
+import { isRealtimeChatEnabled } from '@/infrastructure/config/env';
 
 export interface TranslateSpeechOutput {
   result: TranslationResult;
@@ -76,7 +77,7 @@ interface ConversationSessionState {
 }
 
 function usesNativeStreaming(mode: VoiceTranslationMode): boolean {
-  return (mode === 'conversation' || mode === 'chat') && Platform.OS !== 'web';
+  return Platform.OS !== 'web' && (mode === 'conversation' || (mode === 'chat' && isRealtimeChatEnabled()));
 }
 
 export class TranslateSpeechUseCase {
@@ -90,10 +91,7 @@ export class TranslateSpeechUseCase {
     private readonly translationRepository: ITranslationRepository,
     private readonly textToSpeechRepository: ITextToSpeechRepository,
   ) {
-    this.chatPipeline = new ChatLiveSpeechPipeline(
-      this.speechToTextRepository,
-      this.translationRepository,
-    );
+    this.chatPipeline = new ChatLiveSpeechPipeline(this.translationRepository);
   }
 
   async startRecording(options: StartSpeechRecordingOptions = {}): Promise<void> {
@@ -106,14 +104,19 @@ export class TranslateSpeechUseCase {
       }
 
       if (mode === 'chat') {
-        this.chatPipeline.beginSession(options.pair, options.progress);
         logger.info('CHAT MODE START', { sourceLanguage: options.pair.sourceLanguage });
         await this.audioRepository.startRecording({
           profile: 'fast',
+          sampleRate: 24000,
           onPcmChunk: (chunk, sampleRate) => {
             this.chatPipeline.appendPcm(chunk, sampleRate);
           },
         });
+        try {
+          await this.chatPipeline.beginSession(options.pair, options.progress);
+        } catch (error) {
+          logger.warn('Chat Realtime connect failed; recorded WAV fallback remains available', error);
+        }
         return;
       }
 
@@ -363,17 +366,67 @@ export class TranslateSpeechUseCase {
   ): Promise<TranslateSpeechOutput> {
     this.assertPairSupported(pair.sourceLanguage, pair.targetLanguage, 'chat');
     beginPipelineTiming();
+    let recording: AudioRecording | null = null;
 
     try {
-      const recording = await this.audioRepository.stopRecording();
+      recording = await this.audioRepository.stopRecording();
       markPipelineTiming('recording_finished');
       return await this.chatPipeline.finalize(recording, progress);
     } catch (error) {
       cancelPipelineTiming();
-      throw error;
+      this.chatPipeline.clearSession();
+      if (!recording) throw error;
+      logger.warn('Chat Realtime failed; falling back to recorded audio', error);
+      try {
+        return await this.translateRecordedChatAudio(recording, pair, progress);
+      } catch (fallbackError) {
+        logger.error('Chat WAV fallback failed', fallbackError);
+        throw fallbackError;
+      }
     } finally {
       this.activeMode = 'chat';
     }
+  }
+
+  private async translateRecordedChatAudio(
+    recording: AudioRecording,
+    pair: LanguagePair,
+    progress?: TranslateSpeechProgressHandlers,
+  ): Promise<TranslateSpeechOutput> {
+    if (recording.durationMs < MIN_RECORDING_MS) {
+      throw new AppError('EMPTY_TRANSCRIPTION', 'Hold the button longer while speaking.');
+    }
+
+    const sttResult = await this.speechToTextRepository.transcribe(recording, pair.sourceLanguage, {
+      usePrompt: true,
+    });
+    const originalText = sttResult.text.trim();
+    if (!originalText) {
+      throw new AppError('EMPTY_TRANSCRIPTION', 'No speech detected. Please try again.');
+    }
+    progress?.onTranscribed?.(originalText);
+
+    const translatedText = await this.translationRepository.translate(
+      originalText,
+      pair.sourceLanguage,
+      pair.targetLanguage,
+      DEFAULT_TRANSLATION_CONTEXT,
+      { profile: 'fast' },
+    );
+    progress?.onTranslated?.(originalText, translatedText);
+
+    return {
+      result: createTranslationResult({
+        direction: pair.direction,
+        sourceLanguage: pair.sourceLanguage,
+        targetLanguage: pair.targetLanguage,
+        mode: 'speech',
+        originalText,
+        translatedText,
+        recordingDurationMs: recording.durationMs,
+      }),
+      speechAudioUri: '',
+    };
   }
 
   private beginConversationSession(

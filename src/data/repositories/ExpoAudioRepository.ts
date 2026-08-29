@@ -168,7 +168,7 @@ export class ExpoAudioRepository implements IAudioRepository {
       this.onPcmChunk = options?.onPcmChunk ?? null;
 
       if (this.captureProfile === 'fast' && Platform.OS !== 'web') {
-        return this.startFastStreamRecording();
+        return this.startFastStreamRecording(options?.sampleRate ?? FAST_CAPTURE_SAMPLE_RATE);
       }
 
       return this.startAccurateFileRecording();
@@ -266,14 +266,14 @@ export class ExpoAudioRepository implements IAudioRepository {
     return this.recorder.id;
   }
 
-  private async startFastStreamRecording(): Promise<string> {
+  private async startFastStreamRecording(sampleRate: number): Promise<string> {
     await this.stopPlaybackInternal();
     this.releaseRecorderInternal();
     this.releaseStreamInternal();
     this.resetPlaybackMode();
 
     this.pcmChunks = [];
-    this.streamSampleRate = FAST_CAPTURE_SAMPLE_RATE;
+    this.streamSampleRate = sampleRate;
 
     await setIsAudioActiveAsync(true);
     await setAudioModeAsync({
@@ -282,14 +282,14 @@ export class ExpoAudioRepository implements IAudioRepository {
     });
 
     this.stream = new AudioModule.AudioStream({
-      sampleRate: FAST_CAPTURE_SAMPLE_RATE,
+      sampleRate,
       channels: 1,
       encoding: 'int16',
     });
 
     this.streamBufferSubscription = this.stream.addListener(AUDIO_STREAM_BUFFER, (buffer) => {
       const mono = int16FromBuffer(buffer.data, buffer.channels);
-      this.streamSampleRate = buffer.sampleRate || FAST_CAPTURE_SAMPLE_RATE;
+      this.streamSampleRate = buffer.sampleRate || sampleRate;
       this.pcmChunks.push(mono);
       const totalSamples = this.pcmChunks.reduce((sum, chunk) => sum + chunk.length, 0);
       const durationMs = (totalSamples / this.streamSampleRate) * 1000;
@@ -309,7 +309,7 @@ export class ExpoAudioRepository implements IAudioRepository {
 
     logger.info('Fast stream recording started', {
       streamId: this.stream.id,
-      sampleRate: FAST_CAPTURE_SAMPLE_RATE,
+      sampleRate,
     });
 
     return this.stream.id;

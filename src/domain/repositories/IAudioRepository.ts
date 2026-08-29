@@ -2,6 +2,7 @@ export type RecordingProfile = 'accurate' | 'fast';
 
 export interface StartRecordingOptions {
   profile?: RecordingProfile;
+  sampleRate?: number;
   onPcmChunk?: (chunk: Int16Array, sampleRate: number) => void;
 }
 

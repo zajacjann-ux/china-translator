@@ -69,6 +69,7 @@ export function ConversationHistory({
     <FlatList
       ref={listRef}
       data={messages}
+      extraData={liveScrollKey}
       keyExtractor={keyExtractor}
       renderItem={renderItem}
       style={styles.list}

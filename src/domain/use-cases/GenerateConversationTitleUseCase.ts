@@ -1,8 +1,5 @@
 import type { ConversationMessage } from '@/domain/entities/ConversationMessage';
-import {
-  buildConversationTitlePrompt,
-  buildFallbackConversationTitle,
-} from '@/config/conversationTitle.config';
+import { buildConversationTitlePrompt, buildFallbackConversationTitle } from '@/config/conversationTitle.config';
 import { getOpenAIClient } from '@/data/api/openai-client';
 import { getEnvConfig } from '@/infrastructure/config/env';
 import { logger } from '@/infrastructure/logging/logger';
@@ -17,7 +14,6 @@ export class GenerateConversationTitleUseCase {
       const client = getOpenAIClient();
       const response = await client.chat.completions.create({
         model: env.translationModel,
-        temperature: 0.3,
         max_tokens: 24,
         messages: [
           {
